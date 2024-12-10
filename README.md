@@ -1,4 +1,4 @@
-# V2Xum-LLM: Cross-Modal Video Summarization with Temporal Prompt Instruction Tuning AAAI 2025
+# V2Xum-LLM: Cross-Modal Video Summarization with Temporal Prompt Instruction Tuning (AAAI 2025)
 
 ## ✏️ Citation
 ```bibtex
