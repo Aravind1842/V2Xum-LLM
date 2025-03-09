@@ -64,10 +64,10 @@ def inference(model, image, query, tokenizer):
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Demo")
-    parser.add_argument("--clip_path", type=str, default="checkpoints/clip/ViT-L-14.pt")
+    parser.add_argument("--clip_path", type=str, default="/content/V2Xum-LLM-Models/clip/ViT-L-14.pt")
     parser.add_argument("--model_base", type=str, default="lmsys/vicuna-7b-v1.5")
-    parser.add_argument("--pretrain_mm_mlp_adapter", type=str, default="checkpoints/llava-vicuna-v1-5-7b-stage1/mm_projector.bin")
-    parser.add_argument("--stage2", type=str, default="checkpoints/v2xumllm-vicuna-v1-5-7b-stage2-e2")
+    parser.add_argument("--pretrain_mm_mlp_adapter", type=str, default="/content/V2Xum-LLM-Models/llava-vicuna-v1-5-7b-stage1/mm_projector.bin")
+    parser.add_argument("--stage2", type=str, default="/content/V2Xum-LLM-Models/v2xumllm-vicuna-v1-5-7b-stage2-e2")
     parser.add_argument("--video_path", type=str, default="demo/jump.mp4")
     args = parser.parse_args()
 
