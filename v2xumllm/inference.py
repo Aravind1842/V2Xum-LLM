@@ -1,6 +1,7 @@
 import os
 import sys
 import random
+import re
 import argparse
 import torch
 from v2xumllm.constants import IMAGE_TOKEN_INDEX
@@ -22,6 +23,11 @@ except ImportError:
 from torchvision.transforms import Compose, Resize, CenterCrop, Normalize
 import numpy as np
 import clip
+
+
+def clean_output(text):
+    # This regex removes anything between square brackets including the brackets
+    return re.sub(r'\s*\[[^\]]*\]', '', text)
 
 
 def inference(model, image, query, tokenizer):
@@ -59,7 +65,11 @@ def inference(model, image, query, tokenizer):
     if decoded_outputs.endswith(stop_str):
         decoded_outputs = decoded_outputs[:-len(stop_str)]
     decoded_outputs = decoded_outputs.strip()
-    return decoded_outputs, logits
+    
+    # Clean the output to remove content between square brackets
+    cleaned_output = clean_output(decoded_outputs)
+    
+    return cleaned_output, logits
 
 
 def parse_args():
@@ -107,8 +117,4 @@ if __name__ == "__main__":
     }
 
     query = random.choice(prompts["VT-sum"])
-    print("query: ", query)
     print("answer: ", inference(model, features, "<video>\n " + query, tokenizer)[0])
-
-
-
