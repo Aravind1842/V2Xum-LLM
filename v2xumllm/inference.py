@@ -117,4 +117,4 @@ if __name__ == "__main__":
     }
 
     query = random.choice(prompts["VT-sum"])
-    print("answer: ", inference(model, features, "<video>\n " + query, tokenizer)[0])
+    print("Text Summary: ", inference(model, features, "<video>\n " + query, tokenizer)[0])
