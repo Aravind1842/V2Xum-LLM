@@ -30,6 +30,12 @@ def clean_output(text):
     return re.sub(r'\s*\[[^\]]*\]', '', text)
 
 
+def extract_keyframes(text):
+    # Extract content within square brackets
+    keyframes = re.findall(r'\[([^\]]*)\]', text)
+    return keyframes
+
+
 def inference(model, image, query, tokenizer):
     conv = conv_templates["v1"].copy()
     conv.append_message(conv.roles[0], query)
@@ -61,15 +67,20 @@ def inference(model, image, query, tokenizer):
     if n_diff_input_output > 0:
         print(f'[Warning] {n_diff_input_output} output_ids are not the same as the input_ids')
     decoded_outputs = tokenizer.batch_decode(outputs.sequences[:, input_token_len:], skip_special_tokens=True)[0]
-    decoded_outputs = decoded_outputs.strip()
-    if decoded_outputs.endswith(stop_str):
-        decoded_outputs = decoded_outputs[:-len(stop_str)]
-    decoded_outputs = decoded_outputs.strip()
+    
+    # Get the original output with brackets
+    original_output = decoded_outputs.strip()
+    if original_output.endswith(stop_str):
+        original_output = original_output[:-len(stop_str)]
+    original_output = original_output.strip()
+    
+    # Extract keyframes before cleaning
+    keyframes = extract_keyframes(original_output)
     
     # Clean the output to remove content between square brackets
-    cleaned_output = clean_output(decoded_outputs)
+    cleaned_output = clean_output(original_output)
     
-    return cleaned_output, logits
+    return cleaned_output, keyframes, logits
 
 
 def parse_args():
@@ -104,17 +115,35 @@ if __name__ == "__main__":
         Normalize((0.48145466, 0.4578275, 0.40821073), (0.26862954, 0.26130258, 0.27577711)),
     ])
 
-    # print(images.shape) # <N, 3, H, W>
+    # Print image shape before transformation
+    print("Original Video Frames Shape:", images.shape)  # <N, 3, H, W>
+    
+    # Transform images
     images = transform(images / 255.0)
     images = images.to(torch.float16)
+    
+    # Extract features
     with torch.no_grad():
         features = clip_model.encode_image(images.to('cuda'))
+    
+    # Print feature information
+    print("CLIP Image Features Shape:", features.shape)
+    print("CLIP Image Features Sample (first 5 elements of first frame):", features[0, :5].tolist())
 
-    prompts =  {
-        "V-sum":["Please generate a VIDEO summarization for this video."],
-        "T-sum":["Please generate a TEXT summarization for this video."],
-        "VT-sum":["Please generate BOTH video and text summarization for this video."]
+    prompts = {
+        "V-sum": ["Please generate a VIDEO summarization for this video."],
+        "T-sum": ["Please generate a TEXT summarization for this video."],
+        "VT-sum": ["Please generate BOTH video and text summarization for this video."]
     }
 
     query = random.choice(prompts["VT-sum"])
-    print("Text Summary: ", inference(model, features, "<video>\n " + query, tokenizer)[0])
+    text_summary, keyframes, _ = inference(model, features, "<video>\n " + query, tokenizer)
+    
+    print("\nText Summary:", text_summary)
+    
+    print("\nKeyframes Identified:")
+    if keyframes:
+        for i, keyframe in enumerate(keyframes):
+            print(f"Keyframe {i+1}: {keyframe}")
+    else:
+        print("No keyframes were identified in the output.")
