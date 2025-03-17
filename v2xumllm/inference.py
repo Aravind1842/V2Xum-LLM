@@ -127,8 +127,8 @@ if __name__ == "__main__":
         features = clip_model.encode_image(images.to('cuda'))
     
     # Print feature information
-    print("CLIP Image Features Shape:", features.shape)
-    print("CLIP Image Features Sample (first 5 elements of first frame):", features[0, :5].tolist())
+    print("Encoder Image Features Shape:", features.shape)
+    print("Encoder Image Features Sample (first 10 elements of first frame):", features[0, :10].tolist())
 
     prompts = {
         "V-sum": ["Please generate a VIDEO summarization for this video."],
@@ -144,6 +144,6 @@ if __name__ == "__main__":
     print("\nKeyframes Identified:")
     if keyframes:
         for i, keyframe in enumerate(keyframes):
-            print(f"Keyframe {i+1}: {keyframe}")
+            print(f"Segment {i+1}: {keyframe}")
     else:
         print("No keyframes were identified in the output.")
