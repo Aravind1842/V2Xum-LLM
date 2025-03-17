@@ -20,11 +20,9 @@ try:
 except ImportError:
     from PIL import Image
     BICUBIC = Image.BICUBIC
-from torchvision.transforms import Compose, Resize, CenterCrop, Normalize, ToPILImage
+from torchvision.transforms import Compose, Resize, CenterCrop, Normalize
 import numpy as np
 import clip
-import matplotlib.pyplot as plt
-from sklearn.decomposition import PCA
 
 
 def clean_output(text):
@@ -85,69 +83,6 @@ def inference(model, image, query, tokenizer):
     return cleaned_output, keyframes, logits
 
 
-def visualize_features(features):
-    """Visualize high-dimensional features using PCA and a heatmap."""
-    # Apply PCA to reduce to 2D for visualization
-    pca = PCA(n_components=2)
-    features_np = features.cpu().numpy()
-    pca_result = pca.fit_transform(features_np)
-    
-    # Create figure with two subplots
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6))
-    
-    # Plot 1: PCA visualization of feature vectors
-    scatter = ax1.scatter(pca_result[:, 0], pca_result[:, 1], 
-                         c=range(len(pca_result)), cmap='viridis', 
-                         alpha=0.7)
-    ax1.set_title('PCA of 768D Feature Vectors')
-    ax1.set_xlabel('Principal Component 1')
-    ax1.set_ylabel('Principal Component 2')
-    fig.colorbar(scatter, ax=ax1, label='Frame Index')
-    
-    # Plot 2: Heatmap of feature activations
-    # Take a sample of frames and dimensions for the heatmap to avoid overcrowding
-    sample_size = min(10, features.shape[0])
-    feature_sample = features[:sample_size, :50].cpu().numpy()  # Sample first 50 dimensions
-    
-    im = ax2.imshow(feature_sample, aspect='auto', cmap='plasma')
-    ax2.set_title('Feature Activation Heatmap (First 50 dimensions)')
-    ax2.set_xlabel('Feature Dimension')
-    ax2.set_ylabel('Frame Index')
-    fig.colorbar(im, ax=ax2, label='Activation Value')
-    
-    plt.tight_layout()
-    plt.savefig('feature_visualization.png')
-    plt.close()
-    
-    print("Feature visualization saved as 'feature_visualization.png'")
-
-
-def display_sample_frames(original_frames, num_frames=3):
-    """Display sample frames from the video."""
-    # Select frames at equal intervals
-    frame_indices = np.linspace(0, len(original_frames)-1, num_frames, dtype=int)
-    
-    fig, axes = plt.subplots(1, num_frames, figsize=(15, 5))
-    
-    to_pil = ToPILImage()
-    
-    for i, idx in enumerate(frame_indices):
-        # Convert tensor to PIL image
-        frame = original_frames[idx].cpu()
-        frame = frame.mul(255).byte()  # Scale back to 0-255
-        frame_pil = to_pil(frame)
-        
-        axes[i].imshow(frame_pil)
-        axes[i].set_title(f'Frame {idx}')
-        axes[i].axis('off')
-    
-    plt.tight_layout()
-    plt.savefig('sample_frames.png')
-    plt.close()
-    
-    print("Sample frames saved as 'sample_frames.png'")
-
-
 def parse_args():
     parser = argparse.ArgumentParser(description="Demo")
     parser.add_argument("--clip_path", type=str, default="/content/V2Xum-LLM-Models/clip/ViT-L-14.pt")
@@ -172,10 +107,7 @@ if __name__ == "__main__":
     clip_model = clip_model.cuda()
 
     video_loader = VideoExtractor(N=100)
-    _, raw_images = video_loader.extract({'id': None, 'video': args.video_path})
-
-    # Display sample frames from original video
-    display_sample_frames(raw_images, num_frames=3)
+    _, images = video_loader.extract({'id': None, 'video': args.video_path})
 
     transform = Compose([
         Resize(224, interpolation=BICUBIC),
@@ -184,10 +116,10 @@ if __name__ == "__main__":
     ])
 
     # Print image shape before transformation
-    print("Original Video Frames Shape:", raw_images.shape)  # <N, 3, H, W>
+    print("Original Video Frames Shape:", images.shape)  # <N, 3, H, W>
     
     # Transform images
-    images = transform(raw_images / 255.0)
+    images = transform(images / 255.0)
     images = images.to(torch.float16)
     
     # Extract features
@@ -197,9 +129,6 @@ if __name__ == "__main__":
     # Print feature information
     print("Encoder Image Features Shape:", features.shape)
     print("Encoder Image Features Sample (first 10 elements of first frame):", features[0, :10].tolist())
-    
-    # Visualize the features
-    visualize_features(features)
 
     prompts = {
         "V-sum": ["Please generate a VIDEO summarization for this video."],
