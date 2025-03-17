@@ -115,9 +115,10 @@ if __name__ == "__main__":
         Normalize((0.48145466, 0.4578275, 0.40821073), (0.26862954, 0.26130258, 0.27577711)),
     ])
 
+    print("INPUT\n\n") 
     # Print image shape before transformation
     print("Original Video Frames Shape:", images.shape)  # <N, 3, H, W>
-    
+    print("\n\n") 
     # Transform images
     images = transform(images / 255.0)
     images = images.to(torch.float16)
@@ -125,10 +126,12 @@ if __name__ == "__main__":
     # Extract features
     with torch.no_grad():
         features = clip_model.encode_image(images.to('cuda'))
-    
+
+    print("PHASE 1 OUTPUT \n\n") 
     # Print feature information
     print("Encoder Image Features Shape:", features.shape)
     print("Encoder Image Features Sample (first 10 elements of first frame):", features[0, :10].tolist())
+    print("\n\n") 
 
     prompts = {
         "V-sum": ["Please generate a VIDEO summarization for this video."],
@@ -138,6 +141,8 @@ if __name__ == "__main__":
 
     query = random.choice(prompts["VT-sum"])
     text_summary, keyframes, _ = inference(model, features, "<video>\n " + query, tokenizer)
+
+    print("PHASE 2 OUTPUT \n\n") 
     
     print("\nText Summary:", text_summary)
     
