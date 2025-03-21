@@ -2,6 +2,7 @@ import os
 import sys
 import random
 import re
+import cv2
 import argparse
 import torch
 from v2xumllm.constants import IMAGE_TOKEN_INDEX
@@ -106,7 +107,14 @@ if __name__ == "__main__":
     clip_model.eval()
     clip_model = clip_model.cuda()
 
-    video_loader = VideoExtractor(N=100)
+    video_path = args.video_path
+    cap = cv2.VideoCapture(video_path)
+    fps = cap.get(cv2.CAP_PROP_FPS)  # Get FPS of video
+    num_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))  # Total frames
+    duration = int(num_frames / fps)  # Duration in seconds
+    cap.release()
+
+    video_loader = VideoExtractor(N=duration)
     _, images = video_loader.extract({'id': None, 'video': args.video_path})
 
     transform = Compose([
@@ -115,7 +123,8 @@ if __name__ == "__main__":
         Normalize((0.48145466, 0.4578275, 0.40821073), (0.26862954, 0.26130258, 0.27577711)),
     ])
 
-    print("INPUT\n\n") 
+    print("Frames Extracted : ", duration) 
+    print("\n\n")
     # Print image shape before transformation
     print("Original Video Frames Shape:", images.shape)  # <N, 3, H, W>
     print("\n\n") 
