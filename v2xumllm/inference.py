@@ -123,8 +123,6 @@ if __name__ == "__main__":
         Normalize((0.48145466, 0.4578275, 0.40821073), (0.26862954, 0.26130258, 0.27577711)),
     ])
 
-    print("Frames Extracted : ", duration) 
-    print("\n\n")
     # Print image shape before transformation
     print("Original Video Frames Shape:", images.shape)  # <N, 3, H, W>
     print("\n\n") 
