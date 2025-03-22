@@ -15,12 +15,6 @@ import requests
 from io import BytesIO
 from transformers import TextStreamer
 from easydict import EasyDict as edict
-
-# Set matplotlib backend before importing plt
-import matplotlib
-matplotlib.use('Agg')  # Use non-interactive backend that works in headless environments
-import matplotlib.pyplot as plt
-
 try:
     from torchvision.transforms import InterpolationMode
     BICUBIC = InterpolationMode.BICUBIC
@@ -30,8 +24,6 @@ except ImportError:
 from torchvision.transforms import Compose, Resize, CenterCrop, Normalize
 import numpy as np
 import clip
-import seaborn as sns
-from sklearn.decomposition import PCA
 
 
 def clean_output(text):
@@ -92,11 +84,11 @@ def inference(model, image, query, tokenizer):
     return cleaned_output, keyframes, logits
 
 
-def visualize_frames(raw_frames, transformed_frames):
+def save_sample_frames(raw_frames, transformed_frames):
     """
-    Display 4 random frames before and after transformation
+    Save 4 random frames before and after transformation
     """
-    plt.figure(figsize=(20, 10))
+    os.makedirs("frames", exist_ok=True)
     
     # Randomly select 4 frame indices
     num_frames = raw_frames.shape[0]
@@ -104,93 +96,97 @@ def visualize_frames(raw_frames, transformed_frames):
     
     for i, idx in enumerate(indices):
         # Original frame
-        plt.subplot(2, 4, i+1)
-        # Convert from tensor [C,H,W] to numpy [H,W,C] and from RGB to BGR for display
         raw_frame = raw_frames[idx].permute(1, 2, 0).cpu().numpy()
-        plt.imshow(raw_frame)
-        plt.title(f"Original Frame {idx}")
-        plt.axis('off')
+        raw_frame = (raw_frame * 255).astype(np.uint8)
         
-        # Transformed frame
-        plt.subplot(2, 4, i+5)
-        # Denormalize and convert to numpy for display
+        # OpenCV expects BGR, but our tensor is RGB, so convert
+        raw_frame_bgr = cv2.cvtColor(raw_frame, cv2.COLOR_RGB2BGR)
+        cv2.imwrite(f"frames/original_frame_{idx}.jpg", raw_frame_bgr)
+        
+        # Transformed frame - denormalize first
         trans_frame = transformed_frames[idx].permute(1, 2, 0).cpu().numpy()
-        # Denormalize using the normalization values
+        # Denormalize
         trans_frame = trans_frame * np.array([0.26862954, 0.26130258, 0.27577711]) + np.array([0.48145466, 0.4578275, 0.40821073])
         trans_frame = np.clip(trans_frame, 0, 1)
-        plt.imshow(trans_frame)
-        plt.title(f"Transformed Frame {idx}")
-        plt.axis('off')
+        trans_frame = (trans_frame * 255).astype(np.uint8)
+        
+        # Convert to BGR for OpenCV
+        trans_frame_bgr = cv2.cvtColor(trans_frame, cv2.COLOR_RGB2BGR)
+        cv2.imwrite(f"frames/transformed_frame_{idx}.jpg", trans_frame_bgr)
     
-    plt.tight_layout()
-    plt.savefig("frame_visualization.png")
-    print("Saved frame visualization to 'frame_visualization.png'")
+    print(f"Saved {len(indices)} original and transformed frames to the 'frames' directory")
+    print(f"Frames saved: {indices}")
 
 
-def visualize_feature_vector(features):
+def analyze_feature_vector(features):
     """
-    Create a visualization of the 768D feature vector
+    Create a text-based analysis of the feature vector
     """
-    # 1. Select a random frame
+    # Select a random frame
     frame_idx = random.randint(0, features.shape[0]-1)
     feature_vector = features[frame_idx].cpu().numpy()
     
-    # 2. Apply PCA to reduce dimensions for visualization
-    pca = PCA(n_components=2)
-    # Reshape to include other frames as context for PCA
-    all_features = features.cpu().numpy()
-    pca.fit(all_features)
-    feature_2d = pca.transform(all_features)
-    
-    # 3. Create visualizations
-    plt.figure(figsize=(16, 12))
-    
-    # 3.1 Heatmap of the first 100 elements
-    plt.subplot(2, 2, 1)
-    sns.heatmap(feature_vector[:100].reshape(10, 10), cmap='viridis', annot=False)
-    plt.title(f"Heatmap of First 100 Features (Frame {frame_idx})")
-    
-    # 3.2 Histogram of all values
-    plt.subplot(2, 2, 2)
-    plt.hist(feature_vector, bins=50)
-    plt.title(f"Distribution of Feature Values (Frame {frame_idx})")
-    plt.xlabel("Feature Value")
-    plt.ylabel("Frequency")
-    
-    # 3.3 Feature Magnitude (L2 norm per dimension)
-    plt.subplot(2, 2, 3)
-    magnitudes = np.abs(feature_vector)
-    plt.plot(magnitudes)
-    plt.title(f"Feature Magnitude per Dimension (Frame {frame_idx})")
-    plt.xlabel("Feature Dimension")
-    plt.ylabel("Absolute Magnitude")
-    
-    # 3.4 PCA visualization - scatter plot of all frames with the selected frame highlighted
-    plt.subplot(2, 2, 4)
-    plt.scatter(feature_2d[:, 0], feature_2d[:, 1], alpha=0.5, label="All Frames")
-    plt.scatter(feature_2d[frame_idx, 0], feature_2d[frame_idx, 1], color='red', s=100, label=f"Frame {frame_idx}")
-    plt.title("PCA of Frame Features (2D)")
-    plt.xlabel("PC1")
-    plt.ylabel("PC2")
-    plt.legend()
-    
-    plt.tight_layout()
-    plt.savefig("feature_visualization.png")
-    print("Saved feature visualization to 'feature_visualization.png'")
-    
-    print(f"Feature vector properties (Frame {frame_idx}):")
+    # Basic statistics
+    print(f"\nFeature vector analysis for Frame {frame_idx}:")
     print(f"  Shape: {feature_vector.shape}")
     print(f"  Min value: {feature_vector.min():.4f}")
     print(f"  Max value: {feature_vector.max():.4f}")
     print(f"  Mean: {feature_vector.mean():.4f}")
     print(f"  Std dev: {feature_vector.std():.4f}")
+    
+    # Histogram-like representation of feature distribution
+    bins = 10
+    hist, bin_edges = np.histogram(feature_vector, bins=bins)
+    bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
+    
+    print("\nFeature value distribution (text histogram):")
+    max_count = max(hist)
+    scale_factor = 50 / max_count if max_count > 0 else 1
+    
+    for i in range(bins):
+        bar_length = int(hist[i] * scale_factor)
+        bar = '#' * bar_length
+        print(f"  [{bin_centers[i]:.2f}]: {bar} ({hist[i]} values)")
+    
+    # Find most active dimensions
+    top_indices = np.argsort(np.abs(feature_vector))[-10:][::-1]
+    print("\nTop 10 most active dimensions:")
+    for i, idx in enumerate(top_indices):
+        print(f"  {i+1}. Dimension {idx}: {feature_vector[idx]:.4f}")
+    
+    # Save feature vector to file
+    np.savetxt(f"feature_vector_frame_{frame_idx}.txt", feature_vector)
+    print(f"Full feature vector saved to feature_vector_frame_{frame_idx}.txt")
+
+    # Calculate similarity to other frames
+    if features.shape[0] > 1:
+        print("\nSimilarity to other frames:")
+        # Normalize the vectors for cosine similarity
+        normalized_features = features.cpu().numpy() / np.linalg.norm(features.cpu().numpy(), axis=1, keepdims=True)
+        selected_feature_norm = normalized_features[frame_idx]
+        
+        # Calculate cosine similarity
+        similarities = np.dot(normalized_features, selected_feature_norm)
+        
+        # Find most and least similar frames (excluding self)
+        similarities[frame_idx] = -float('inf')  # Exclude self
+        most_similar_idx = np.argmax(similarities)
+        similarities[frame_idx] = float('inf')  # Exclude self
+        least_similar_idx = np.argmin(similarities)
+        
+        print(f"  Most similar frame: {most_similar_idx} (similarity: {similarities[most_similar_idx]:.4f})")
+        print(f"  Least similar frame: {least_similar_idx} (similarity: {similarities[least_similar_idx]:.4f})")
 
 
-def visualize_logits(logits, tokenizer):
+def analyze_logits(logits, tokenizer):
     """
-    Visualize the model's output logits
+    Analyze and display the model's output logits in text format
     """
     # Choose a random position in the sequence
+    if not logits:
+        print("No logits available to analyze.")
+        return
+        
     logit_step = random.randint(0, len(logits)-1)
     selected_logits = logits[logit_step][0].cpu().float()
     
@@ -205,34 +201,31 @@ def visualize_logits(logits, tokenizer):
     # Get token strings
     top_tokens = [tokenizer.decode([idx.item()]) for idx in top_indices]
     
-    # Create visualization
-    plt.figure(figsize=(12, 8))
-    
-    # Plot top tokens and their probabilities
-    plt.subplot(2, 1, 1)
-    plt.bar(range(top_k), top_probs.numpy())
-    plt.xticks(range(top_k), top_tokens, rotation=45, ha='right')
-    plt.title(f"Top {top_k} Token Probabilities at Step {logit_step}")
-    plt.xlabel("Token")
-    plt.ylabel("Probability")
-    
-    # Plot logit value distribution
-    plt.subplot(2, 1, 2)
-    plt.hist(selected_logits.numpy(), bins=50)
-    plt.title(f"Distribution of Logit Values at Step {logit_step}")
-    plt.xlabel("Logit Value")
-    plt.ylabel("Frequency")
-    
-    plt.tight_layout()
-    plt.savefig("logits_visualization.png")
-    print("Saved logits visualization to 'logits_visualization.png'")
-    
-    print(f"Logits properties at step {logit_step}:")
+    print(f"\nLogits analysis at step {logit_step}:")
     print(f"  Vocabulary size: {selected_logits.shape[0]}")
     print(f"  Min logit: {selected_logits.min().item():.4f}")
     print(f"  Max logit: {selected_logits.max().item():.4f}")
-    print(f"  Most likely next token: '{tokenizer.decode([top_indices[0].item()])}'")
-    print(f"  With probability: {top_probs[0].item():.4f}")
+    
+    print("\nTop 20 most likely next tokens:")
+    for i in range(top_k):
+        # Create a visual bar of probability
+        bar_length = int(top_probs[i].item() * 50)
+        bar = '#' * bar_length
+        print(f"  {i+1}. '{top_tokens[i]}': {top_probs[i].item():.4f} {bar}")
+    
+    # Save full logits to file
+    np.savetxt(f"logits_step_{logit_step}.txt", selected_logits.numpy())
+    print(f"Full logits saved to logits_step_{logit_step}.txt")
+    
+    # Entropy of the distribution
+    entropy = -torch.sum(probs * torch.log2(probs + 1e-10)).item()
+    print(f"\nEntropy of distribution: {entropy:.4f} bits")
+    if entropy < 2.0:
+        print("  Low entropy - model is very confident in its prediction")
+    elif entropy > 4.0:
+        print("  High entropy - model is uncertain about prediction")
+    else:
+        print("  Medium entropy - model has moderate confidence")
 
 
 def parse_args():
@@ -287,8 +280,8 @@ if __name__ == "__main__":
     transformed_images = transform(raw_images / 255.0)
     transformed_images = transformed_images.to(torch.float16)
     
-    # Visualize frames before and after transformation
-    visualize_frames(original_frames, transformed_images)
+    # Save frames before and after transformation
+    save_sample_frames(original_frames, transformed_images)
     
     # Extract features
     with torch.no_grad():
@@ -299,8 +292,8 @@ if __name__ == "__main__":
     print("Encoder Image Features Shape:", features.shape)
     print("Encoder Image Features Sample (first 10 elements of first frame):", features[0, :10].tolist())
     
-    # Visualize feature vector
-    visualize_feature_vector(features)
+    # Analyze feature vector
+    analyze_feature_vector(features)
 
     prompts = {
         "V-sum": ["Please generate a VIDEO summarization for this video."],
@@ -322,8 +315,8 @@ if __name__ == "__main__":
     else:
         print("No keyframes were identified in the output.")
     
-    # Visualize logits
-    print("\n===== MODEL LOGITS VISUALIZATION =====")
-    visualize_logits(logits, tokenizer)
+    # Analyze logits
+    print("\n===== MODEL LOGITS ANALYSIS =====")
+    analyze_logits(logits, tokenizer)
     
-    print("\nAll visualizations have been saved as PNG files in the current directory.")
+    print("\nAll intermediate results have been demonstrated and saved to files.")
