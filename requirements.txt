@@ -15,3 +15,6 @@ protobuf
 wandb
 deepspeed
 opencv-python
+matplotlib
+seaborn 
+scikit-learn
