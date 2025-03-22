@@ -155,7 +155,6 @@ if __name__ == "__main__":
     
     print("\nKeyframes Identified:")
     if keyframes:
-        if keyframes:
         for i, keyframe_str in enumerate(keyframes):
             keyframe_nums = [int(k) for k in keyframe_str.split(",")]
             scaled_keyframes = [int((k / 100) * duration) for k in keyframe_nums]
