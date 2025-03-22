@@ -15,6 +15,12 @@ import requests
 from io import BytesIO
 from transformers import TextStreamer
 from easydict import EasyDict as edict
+
+# Set matplotlib backend before importing plt
+import matplotlib
+matplotlib.use('Agg')  # Use non-interactive backend that works in headless environments
+import matplotlib.pyplot as plt
+
 try:
     from torchvision.transforms import InterpolationMode
     BICUBIC = InterpolationMode.BICUBIC
@@ -24,7 +30,6 @@ except ImportError:
 from torchvision.transforms import Compose, Resize, CenterCrop, Normalize
 import numpy as np
 import clip
-import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.decomposition import PCA
 
@@ -119,7 +124,7 @@ def visualize_frames(raw_frames, transformed_frames):
     
     plt.tight_layout()
     plt.savefig("frame_visualization.png")
-    plt.show()
+    print("Saved frame visualization to 'frame_visualization.png'")
 
 
 def visualize_feature_vector(features):
@@ -171,7 +176,7 @@ def visualize_feature_vector(features):
     
     plt.tight_layout()
     plt.savefig("feature_visualization.png")
-    plt.show()
+    print("Saved feature visualization to 'feature_visualization.png'")
     
     print(f"Feature vector properties (Frame {frame_idx}):")
     print(f"  Shape: {feature_vector.shape}")
@@ -220,7 +225,7 @@ def visualize_logits(logits, tokenizer):
     
     plt.tight_layout()
     plt.savefig("logits_visualization.png")
-    plt.show()
+    print("Saved logits visualization to 'logits_visualization.png'")
     
     print(f"Logits properties at step {logit_step}:")
     print(f"  Vocabulary size: {selected_logits.shape[0]}")
@@ -320,3 +325,5 @@ if __name__ == "__main__":
     # Visualize logits
     print("\n===== MODEL LOGITS VISUALIZATION =====")
     visualize_logits(logits, tokenizer)
+    
+    print("\nAll visualizations have been saved as PNG files in the current directory.")
