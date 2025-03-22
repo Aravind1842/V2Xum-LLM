@@ -24,6 +24,9 @@ except ImportError:
 from torchvision.transforms import Compose, Resize, CenterCrop, Normalize
 import numpy as np
 import clip
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.decomposition import PCA
 
 
 def clean_output(text):
@@ -84,6 +87,149 @@ def inference(model, image, query, tokenizer):
     return cleaned_output, keyframes, logits
 
 
+def visualize_frames(raw_frames, transformed_frames):
+    """
+    Display 4 random frames before and after transformation
+    """
+    plt.figure(figsize=(20, 10))
+    
+    # Randomly select 4 frame indices
+    num_frames = raw_frames.shape[0]
+    indices = random.sample(range(num_frames), min(4, num_frames))
+    
+    for i, idx in enumerate(indices):
+        # Original frame
+        plt.subplot(2, 4, i+1)
+        # Convert from tensor [C,H,W] to numpy [H,W,C] and from RGB to BGR for display
+        raw_frame = raw_frames[idx].permute(1, 2, 0).cpu().numpy()
+        plt.imshow(raw_frame)
+        plt.title(f"Original Frame {idx}")
+        plt.axis('off')
+        
+        # Transformed frame
+        plt.subplot(2, 4, i+5)
+        # Denormalize and convert to numpy for display
+        trans_frame = transformed_frames[idx].permute(1, 2, 0).cpu().numpy()
+        # Denormalize using the normalization values
+        trans_frame = trans_frame * np.array([0.26862954, 0.26130258, 0.27577711]) + np.array([0.48145466, 0.4578275, 0.40821073])
+        trans_frame = np.clip(trans_frame, 0, 1)
+        plt.imshow(trans_frame)
+        plt.title(f"Transformed Frame {idx}")
+        plt.axis('off')
+    
+    plt.tight_layout()
+    plt.savefig("frame_visualization.png")
+    plt.show()
+
+
+def visualize_feature_vector(features):
+    """
+    Create a visualization of the 768D feature vector
+    """
+    # 1. Select a random frame
+    frame_idx = random.randint(0, features.shape[0]-1)
+    feature_vector = features[frame_idx].cpu().numpy()
+    
+    # 2. Apply PCA to reduce dimensions for visualization
+    pca = PCA(n_components=2)
+    # Reshape to include other frames as context for PCA
+    all_features = features.cpu().numpy()
+    pca.fit(all_features)
+    feature_2d = pca.transform(all_features)
+    
+    # 3. Create visualizations
+    plt.figure(figsize=(16, 12))
+    
+    # 3.1 Heatmap of the first 100 elements
+    plt.subplot(2, 2, 1)
+    sns.heatmap(feature_vector[:100].reshape(10, 10), cmap='viridis', annot=False)
+    plt.title(f"Heatmap of First 100 Features (Frame {frame_idx})")
+    
+    # 3.2 Histogram of all values
+    plt.subplot(2, 2, 2)
+    plt.hist(feature_vector, bins=50)
+    plt.title(f"Distribution of Feature Values (Frame {frame_idx})")
+    plt.xlabel("Feature Value")
+    plt.ylabel("Frequency")
+    
+    # 3.3 Feature Magnitude (L2 norm per dimension)
+    plt.subplot(2, 2, 3)
+    magnitudes = np.abs(feature_vector)
+    plt.plot(magnitudes)
+    plt.title(f"Feature Magnitude per Dimension (Frame {frame_idx})")
+    plt.xlabel("Feature Dimension")
+    plt.ylabel("Absolute Magnitude")
+    
+    # 3.4 PCA visualization - scatter plot of all frames with the selected frame highlighted
+    plt.subplot(2, 2, 4)
+    plt.scatter(feature_2d[:, 0], feature_2d[:, 1], alpha=0.5, label="All Frames")
+    plt.scatter(feature_2d[frame_idx, 0], feature_2d[frame_idx, 1], color='red', s=100, label=f"Frame {frame_idx}")
+    plt.title("PCA of Frame Features (2D)")
+    plt.xlabel("PC1")
+    plt.ylabel("PC2")
+    plt.legend()
+    
+    plt.tight_layout()
+    plt.savefig("feature_visualization.png")
+    plt.show()
+    
+    print(f"Feature vector properties (Frame {frame_idx}):")
+    print(f"  Shape: {feature_vector.shape}")
+    print(f"  Min value: {feature_vector.min():.4f}")
+    print(f"  Max value: {feature_vector.max():.4f}")
+    print(f"  Mean: {feature_vector.mean():.4f}")
+    print(f"  Std dev: {feature_vector.std():.4f}")
+
+
+def visualize_logits(logits, tokenizer):
+    """
+    Visualize the model's output logits
+    """
+    # Choose a random position in the sequence
+    logit_step = random.randint(0, len(logits)-1)
+    selected_logits = logits[logit_step][0].cpu().float()
+    
+    # Get the top predicted tokens
+    top_k = 20
+    top_values, top_indices = torch.topk(selected_logits, top_k)
+    
+    # Convert to probabilities
+    probs = torch.softmax(selected_logits, dim=0)
+    top_probs = probs[top_indices]
+    
+    # Get token strings
+    top_tokens = [tokenizer.decode([idx.item()]) for idx in top_indices]
+    
+    # Create visualization
+    plt.figure(figsize=(12, 8))
+    
+    # Plot top tokens and their probabilities
+    plt.subplot(2, 1, 1)
+    plt.bar(range(top_k), top_probs.numpy())
+    plt.xticks(range(top_k), top_tokens, rotation=45, ha='right')
+    plt.title(f"Top {top_k} Token Probabilities at Step {logit_step}")
+    plt.xlabel("Token")
+    plt.ylabel("Probability")
+    
+    # Plot logit value distribution
+    plt.subplot(2, 1, 2)
+    plt.hist(selected_logits.numpy(), bins=50)
+    plt.title(f"Distribution of Logit Values at Step {logit_step}")
+    plt.xlabel("Logit Value")
+    plt.ylabel("Frequency")
+    
+    plt.tight_layout()
+    plt.savefig("logits_visualization.png")
+    plt.show()
+    
+    print(f"Logits properties at step {logit_step}:")
+    print(f"  Vocabulary size: {selected_logits.shape[0]}")
+    print(f"  Min logit: {selected_logits.min().item():.4f}")
+    print(f"  Max logit: {selected_logits.max().item():.4f}")
+    print(f"  Most likely next token: '{tokenizer.decode([top_indices[0].item()])}'")
+    print(f"  With probability: {top_probs[0].item():.4f}")
+
+
 def parse_args():
     parser = argparse.ArgumentParser(description="Demo")
     parser.add_argument("--clip_path", type=str, default="/content/V2Xum-LLM-Models/clip/ViT-L-14.pt")
@@ -115,8 +261,14 @@ if __name__ == "__main__":
     cap.release()
 
     video_loader = VideoExtractor(N=duration)
-    _, images = video_loader.extract({'id': None, 'video': args.video_path})
+    _, raw_images = video_loader.extract({'id': None, 'video': args.video_path})
 
+    # Display frames before transformation
+    print("\n===== DISPLAYING ORIGINAL AND TRANSFORMED FRAMES =====")
+    
+    # Save copy of original frames for visualization
+    original_frames = raw_images.clone()
+    
     transform = Compose([
         Resize(224, interpolation=BICUBIC),
         CenterCrop(224),
@@ -124,21 +276,26 @@ if __name__ == "__main__":
     ])
 
     # Print image shape before transformation
-    print("Original Video Frames Shape:", images.shape)  # <N, 3, H, W>
-    print("\n\n") 
+    print("Original Video Frames Shape:", raw_images.shape)  # <N, 3, H, W>
+    
     # Transform images
-    images = transform(images / 255.0)
-    images = images.to(torch.float16)
+    transformed_images = transform(raw_images / 255.0)
+    transformed_images = transformed_images.to(torch.float16)
+    
+    # Visualize frames before and after transformation
+    visualize_frames(original_frames, transformed_images)
     
     # Extract features
     with torch.no_grad():
-        features = clip_model.encode_image(images.to('cuda'))
+        features = clip_model.encode_image(transformed_images.to('cuda'))
 
-    print("PHASE 1 OUTPUT \n\n") 
+    print("\n===== FEATURE EXTRACTION RESULTS =====") 
     # Print feature information
     print("Encoder Image Features Shape:", features.shape)
     print("Encoder Image Features Sample (first 10 elements of first frame):", features[0, :10].tolist())
-    print("\n\n") 
+    
+    # Visualize feature vector
+    visualize_feature_vector(features)
 
     prompts = {
         "V-sum": ["Please generate a VIDEO summarization for this video."],
@@ -147,9 +304,9 @@ if __name__ == "__main__":
     }
 
     query = random.choice(prompts["VT-sum"])
-    text_summary, keyframes, _ = inference(model, features, "<video>\n " + query, tokenizer)
+    text_summary, keyframes, logits = inference(model, features, "<video>\n " + query, tokenizer)
 
-    print("PHASE 2 OUTPUT \n\n") 
+    print("\n===== MODEL OUTPUT RESULTS =====") 
     
     print("\nText Summary:", text_summary)
     
@@ -159,3 +316,7 @@ if __name__ == "__main__":
             print(f"Segment {i+1}: {keyframe}")
     else:
         print("No keyframes were identified in the output.")
+    
+    # Visualize logits
+    print("\n===== MODEL LOGITS VISUALIZATION =====")
+    visualize_logits(logits, tokenizer)
