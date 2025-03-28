@@ -57,11 +57,11 @@ def inference(model, image, query, tokenizer):
             num_beams=1,
             max_new_tokens=1024,
             use_cache=True,
-            output_scores=True,
-            return_dict_in_generate=True
+            output_scores=True,  # Request output scores (logits)
+            return_dict_in_generate=True  # Return a dictionary containing logits
         )
 
-        logits = outputs.scores
+        logits = outputs.scores  # Extract logits
 
     input_token_len = input_ids.shape[1]
     n_diff_input_output = (input_ids != outputs.sequences[:, :input_token_len]).sum().item()
@@ -84,58 +84,23 @@ def inference(model, image, query, tokenizer):
     return cleaned_output, keyframes, logits
 
 
-def create_keyframe_video(video_path, keyframe_segments, output_path, duration_per_frame):
-    # Open the original video
-    cap = cv2.VideoCapture(video_path)
-    
-    # Get video properties
-    fps = cap.get(cv2.CAP_PROP_FPS)
-    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-    
-    # Prepare video writer
-    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-    out = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
-    
-    # Flatten and unique the keyframe segments
-    all_keyframes = sorted(set([frame for segment in keyframe_segments for frame in segment]))
-    
-    # Write keyframes to the output video
-    for frame_idx in all_keyframes:
-        # Set the frame position
-        cap.set(cv2.CAP_PROP_POS_FRAMES, frame_idx)
-        
-        # Read the frame
-        ret, frame = cap.read()
-        
-        if ret:
-            # Write the frame multiple times to create a longer duration
-            for _ in range(int(fps * duration_per_frame)):
-                out.write(frame)
-    
-    # Release resources
-    cap.release()
-    out.release()
-    
-    print(f"Summarized video saved to {output_path}")
-    return output_path
-
-
 def parse_args():
-    parser = argparse.ArgumentParser(description="Video Keyframe Summarization Demo")
+    parser = argparse.ArgumentParser(description="Demo")
     parser.add_argument("--clip_path", type=str, default="/content/V2Xum-LLM-Models/clip/ViT-L-14.pt")
     parser.add_argument("--model_base", type=str, default="lmsys/vicuna-7b-v1.5")
     parser.add_argument("--pretrain_mm_mlp_adapter", type=str, default="/content/V2Xum-LLM-Models/llava-vicuna-v1-5-7b-stage1/mm_projector.bin")
     parser.add_argument("--stage2", type=str, default="/content/V2Xum-LLM-Models/v2xumllm-vicuna-v1-5-7b-stage2-e2")
     parser.add_argument("--video_path", type=str, default="demo/Ex1.mp4")
-    return parser.parse_args()
+    args = parser.parse_args()
 
+    return args
 
 if __name__ == "__main__":
     args = parse_args()
     disable_torch_init()
     tokenizer, model, context_len = load_pretrained_model(args, args.stage2)
     model = model.cuda()
+    # model.get_model().mm_projector.to(torch.float16)
     model.to(torch.float16)
 
     clip_model, _ = clip.load(args.clip_path)
@@ -158,6 +123,9 @@ if __name__ == "__main__":
         Normalize((0.48145466, 0.4578275, 0.40821073), (0.26862954, 0.26130258, 0.27577711)),
     ])
 
+    # Print image shape before transformation
+    print("Original Video Frames Shape:", images.shape)  # <N, 3, H, W>
+    print("\n\n") 
     # Transform images
     images = transform(images / 255.0)
     images = images.to(torch.float16)
@@ -165,6 +133,12 @@ if __name__ == "__main__":
     # Extract features
     with torch.no_grad():
         features = clip_model.encode_image(images.to('cuda'))
+
+    print("PHASE 1 OUTPUT \n\n") 
+    # Print feature information
+    print("Encoder Image Features Shape:", features.shape)
+    print("Encoder Image Features Sample (first 10 elements of first frame):", features[0, :10].tolist())
+    print("\n\n") 
 
     prompts = {
         "V-sum": ["Please generate a VIDEO summarization for this video."],
@@ -175,27 +149,16 @@ if __name__ == "__main__":
     query = random.choice(prompts["VT-sum"])
     text_summary, keyframes, _ = inference(model, features, "<video>\n " + query, tokenizer)
 
+    print("PHASE 2 OUTPUT \n\n") 
+    
     print("\nText Summary:", text_summary)
     
     print("\nKeyframes Identified:")
-    keyframe_segments = []
     if keyframes:
         for i, keyframe_str in enumerate(keyframes):
             keyframe_nums = [int(k) for k in keyframe_str.split(",")]
-            scaled_keyframes = [int((k / 100) * num_frames) for k in keyframe_nums]
+            scaled_keyframes = [int((k / 100) * duration) for k in keyframe_nums]
             unique_scaled_keyframes = sorted(list(set(scaled_keyframes)))
-            
             print(f"Segment {i+1}: {', '.join(map(str, unique_scaled_keyframes))}")
-            keyframe_segments.append(unique_scaled_keyframes)
     else:
         print("No keyframes were identified in the output.")
-        
-    # Create summarized video
-    if keyframe_segments:
-        output_video_path = create_keyframe_video(
-            video_path, 
-            keyframe_segments, 
-            output_path="video_summary.mp4", 
-            duration_per_frame=2
-        )
-        print(f"\nSummarized video saved to: {output_video_path}")
