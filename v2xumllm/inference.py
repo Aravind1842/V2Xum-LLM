@@ -196,6 +196,6 @@ if __name__ == "__main__":
             video_path, 
             keyframe_segments, 
             output_path="video_summary.mp4", 
-            duration_per_frame=2
+            duration_per_frame=1
         )
         print(f"\nSummarized video saved to: {output_video_path}")
