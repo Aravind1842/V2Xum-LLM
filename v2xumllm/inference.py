@@ -128,7 +128,6 @@ def parse_args():
     parser.add_argument("--pretrain_mm_mlp_adapter", type=str, default="/content/V2Xum-LLM-Models/llava-vicuna-v1-5-7b-stage1/mm_projector.bin")
     parser.add_argument("--stage2", type=str, default="/content/V2Xum-LLM-Models/v2xumllm-vicuna-v1-5-7b-stage2-e2")
     parser.add_argument("--video_path", type=str, default="demo/Ex1.mp4")
-    parser.add_argument("--output_path", type=str, default="demo/sum.mp4", help="Path to save summarized video")
     args = parser.parse_args()
 
     return args
@@ -198,7 +197,7 @@ if __name__ == "__main__":
         output_video_path = create_keyframe_video(
             video_path, 
             keyframe_segments, 
-            output_path=args.output_path, 
+            output_path="video_summary.mp4", 
             duration_per_frame=2
         )
         print(f"\nSummarized video saved to: {output_video_path}")
