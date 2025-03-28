@@ -85,6 +85,15 @@ def inference(model, image, query, tokenizer):
 
 
 def create_keyframe_video(video_path, keyframe_segments, output_path='summarized_video.mp4', duration_per_frame=2):
+    """
+    Create a summarized video using only the identified keyframes.
+    
+    Args:
+    - video_path (str): Path to the input video
+    - keyframe_segments (list): List of segments with frame indices
+    - output_path (str): Path to save the summarized video
+    - duration_per_frame (int): Duration (in seconds) to show each keyframe
+    """
     # Open the original video
     cap = cv2.VideoCapture(video_path)
     
@@ -128,7 +137,16 @@ def parse_args():
     parser.add_argument("--pretrain_mm_mlp_adapter", type=str, default="/content/V2Xum-LLM-Models/llava-vicuna-v1-5-7b-stage1/mm_projector.bin")
     parser.add_argument("--stage2", type=str, default="/content/V2Xum-LLM-Models/v2xumllm-vicuna-v1-5-7b-stage2-e2")
     parser.add_argument("--video_path", type=str, default="demo/Ex1.mp4")
+    parser.add_argument("--output_path", type=str, default=None, help="Path to save summarized video")
+    parser.add_argument("--frame_duration", type=int, default=2, help="Duration (in seconds) to show each keyframe")
     args = parser.parse_args()
+
+    # If no output path is specified, create one in the current directory
+    if args.output_path is None:
+        # Extract filename from video path and add 'summarized_' prefix
+        video_filename = os.path.basename(args.video_path)
+        args.output_path = os.path.join(os.getcwd(), f"summarized_{video_filename}")
+
     return args
 
 
