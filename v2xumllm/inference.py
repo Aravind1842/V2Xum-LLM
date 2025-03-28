@@ -129,6 +129,7 @@ def parse_args():
     parser.add_argument("--stage2", type=str, default="/content/V2Xum-LLM-Models/v2xumllm-vicuna-v1-5-7b-stage2-e2")
     parser.add_argument("--video_path", type=str, default="demo/Ex1.mp4")
     args = parser.parse_args()
+    return args
 
 
 if __name__ == "__main__":
