@@ -24,6 +24,8 @@ except ImportError:
 from torchvision.transforms import Compose, Resize, CenterCrop, Normalize
 import numpy as np
 import clip
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Video Keyframe Summarization Demo")
@@ -39,42 +41,54 @@ if __name__ == "__main__":
     args = parse_args()
     disable_torch_init()
 
-    video_loader = VideoExtractor(N=10)  # Adjust N as needed
+    clip_model, _ = clip.load(args.clip_path)
+    clip_model.eval()
+    clip_model = clip_model.cuda()
+
+    video_path = args.video_path
+    cap = cv2.VideoCapture(video_path)
+    fps = cap.get(cv2.CAP_PROP_FPS)  # Get FPS of video
+    num_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))  # Total frames
+    duration = int(num_frames / fps)  # Duration in seconds
+    cap.release()
+
+    video_loader = VideoExtractor(N=duration)
     _, images = video_loader.extract({'id': None, 'video': args.video_path})
 
-    # Select 3 random frames
-    if len(images) >= 3:
-        random_indices = random.sample(range(len(images)), 3)
-        output_dir = "output"
-        transformed_dir = "transformed_frames"
-        os.makedirs(output_dir, exist_ok=True)
-        os.makedirs(transformed_dir, exist_ok=True)
+    transform = Compose([
+        Resize(224, interpolation=BICUBIC),
+        CenterCrop(224),
+        Normalize((0.48145466, 0.4578275, 0.40821073), (0.26862954, 0.26130258, 0.27577711)),
+    ])
 
-        transform = Compose([
-            Resize(224, interpolation=Image.BICUBIC),
-            CenterCrop(224),
-            Normalize((0.48145466, 0.4578275, 0.40821073), (0.26862954, 0.26130258, 0.27577711)),
-        ])
+    # Transform images
+    images = transform(images / 255.0)
+    images = images.to(torch.float16)
+    
+    # Extract features
+    with torch.no_grad():
+        features = clip_model.encode_image(images.to('cuda'))
 
-        for i, idx in enumerate(random_indices):
-            frame = images[idx]
-            output_path = os.path.join(output_dir, f"frame_{idx}.png")
-            transformed_path = os.path.join(transformed_dir, f"frame_{idx}.png")
-
-            try:
-                frame_np = frame.cpu().numpy()
-                if len(frame_np.shape) == 3 and frame_np.shape[0] == 3:
-                    frame_np = np.transpose(frame_np, (1, 2, 0))  # Convert CHW to HWC
-                cv2.imwrite(output_path, cv2.cvtColor(frame_np, cv2.COLOR_RGB2BGR))
-
-                # Apply transformation
-                frame_tensor = torch.tensor(frame_np).permute(2, 0, 1) / 255.0  # Convert to tensor and normalize
-                transformed_frame = transform(frame_tensor).permute(1, 2, 0).numpy()  # Convert back to numpy
-                transformed_frame = (transformed_frame * 255).astype(np.uint8)  # Denormalize
-                cv2.imwrite(transformed_path, cv2.cvtColor(transformed_frame, cv2.COLOR_RGB2BGR))
-            except Exception as e:
-                print(f"Error processing frame {idx}: {e}")
-    else:
-        print(f"Not enough frames extracted. Only got {len(images)} frames.")
-
-    print("Done!")
+    # Move features to CPU and convert to numpy
+    features = features.cpu().numpy()
+    
+    # Print basic info
+    print("Feature shape:", features.shape)  # Expected shape: (num_images, feature_dim)
+    print("First 5 feature values of the first frame:", features[0, :5])  # Sample values
+    
+    # Plot histogram of feature values
+    plt.figure(figsize=(10, 5))
+    plt.hist(features.flatten(), bins=50, color='blue', alpha=0.7)
+    plt.title("Histogram of Extracted Features")
+    plt.xlabel("Feature Value")
+    plt.ylabel("Frequency")
+    plt.show()
+    
+    # Plot heatmap (only for first few images)
+    num_images_to_show = min(5, features.shape[0])  # Limit to 5 images
+    plt.figure(figsize=(10, 4))
+    sns.heatmap(features[:num_images_to_show, :], cmap="viridis", annot=False)
+    plt.title("Feature Map of First Few Frames")
+    plt.xlabel("Feature Dimension")
+    plt.ylabel("Frame Index")
+    plt.show()
