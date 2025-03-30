@@ -24,6 +24,7 @@ except ImportError:
 from torchvision.transforms import Compose, Resize, CenterCrop, Normalize
 import numpy as np
 import clip
+import matplotlib.pyplot as plt
 
 
 def clean_output(text):
@@ -121,6 +122,155 @@ def create_keyframe_video(video_path, keyframe_segments, output_path, duration_p
     return output_path
 
 
+def display_video_info(video_path):
+    """Display comprehensive information about the input video."""
+    cap = cv2.VideoCapture(video_path)
+    
+    # Get video properties
+    fps = cap.get(cv2.CAP_PROP_FPS)
+    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    num_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    duration = num_frames / fps
+    
+    # Get video codec
+    fourcc = int(cap.get(cv2.CAP_PROP_FOURCC))
+    codec = chr(fourcc & 0xFF) + chr((fourcc >> 8) & 0xFF) + chr((fourcc >> 16) & 0xFF) + chr((fourcc >> 24) & 0xFF)
+    
+    # Print video information
+    print("\n" + "="*50)
+    print("VIDEO INFORMATION:")
+    print("="*50)
+    print(f"Path: {video_path}")
+    print(f"Resolution: {width}x{height}")
+    print(f"FPS: {fps:.2f}")
+    print(f"Duration: {duration:.2f} seconds ({int(duration//60)}m {int(duration%60)}s)")
+    print(f"Total Frames: {num_frames}")
+    print(f"Codec: {codec}")
+    print(f"File Size: {os.path.getsize(video_path) / (1024*1024):.2f} MB")
+    print("="*50)
+    
+    cap.release()
+    return width, height, fps, num_frames, duration
+
+
+def display_random_frames(video_path, num_frames=3):
+    """Extract and display random frames from the video."""
+    cap = cv2.VideoCapture(video_path)
+    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    
+    # Select random frames
+    random_indices = sorted(random.sample(range(total_frames), min(num_frames, total_frames)))
+    
+    plt.figure(figsize=(15, 5*num_frames))
+    
+    for i, frame_idx in enumerate(random_indices):
+        cap.set(cv2.CAP_PROP_POS_FRAMES, frame_idx)
+        ret, frame = cap.read()
+        
+        if ret:
+            # Convert BGR to RGB for correct display in matplotlib
+            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            
+            plt.subplot(num_frames, 1, i+1)
+            plt.imshow(frame_rgb)
+            plt.title(f"Frame {frame_idx} of {total_frames}")
+            plt.axis('off')
+    
+    cap.release()
+    plt.tight_layout()
+    plt.savefig("random_frames.png")
+    print("\nRandom frames saved to random_frames.png")
+    plt.close()
+    
+    return random_indices
+
+
+def display_transformation_comparison(video_path, random_indices, transform):
+    """Show comparison of frames before and after CLIP transformation."""
+    cap = cv2.VideoCapture(video_path)
+    
+    plt.figure(figsize=(15, 10))
+    
+    for i, frame_idx in enumerate(random_indices[:2]):  # Limit to 2 frames for clarity
+        cap.set(cv2.CAP_PROP_POS_FRAMES, frame_idx)
+        ret, frame = cap.read()
+        
+        if ret:
+            # Original frame (convert BGR to RGB)
+            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            
+            # Process frame for CLIP
+            frame_pil = Image.fromarray(frame_rgb)
+            frame_tensor = torch.from_numpy(np.array(frame_pil)).permute(2, 0, 1).float() / 255.0
+            transformed_tensor = transform(frame_tensor)
+            
+            # Convert transformed tensor back to numpy for display
+            # Unnormalize
+            mean = torch.tensor([0.48145466, 0.4578275, 0.40821073])
+            std = torch.tensor([0.26862954, 0.26130258, 0.27577711])
+            transformed_display = transformed_tensor.clone().cpu()
+            for t, m, s in zip(transformed_display, mean, std):
+                t.mul_(s).add_(m)
+            
+            transformed_np = transformed_display.permute(1, 2, 0).numpy()
+            transformed_np = np.clip(transformed_np, 0, 1)
+            
+            # Display original frame
+            plt.subplot(2, 2, i*2+1)
+            plt.imshow(frame_rgb)
+            plt.title(f"Original Frame {frame_idx}")
+            plt.axis('off')
+            
+            # Display transformed frame
+            plt.subplot(2, 2, i*2+2)
+            plt.imshow(transformed_np)
+            plt.title(f"Transformed Frame {frame_idx} (224x224)")
+            plt.axis('off')
+    
+    cap.release()
+    plt.tight_layout()
+    plt.savefig("transformation_comparison.png")
+    print("\nTransformation comparison saved to transformation_comparison.png")
+    plt.close()
+
+
+def display_features_info(features):
+    """Display information about the features extracted by CLIP."""
+    print("\n" + "="*50)
+    print("CLIP FEATURES INFORMATION:")
+    print("="*50)
+    print(f"Features Shape: {features.shape}")
+    print(f"Features Type: {features.dtype}")
+    print(f"Features Range: [{features.min().item():.4f}, {features.max().item():.4f}]")
+    print(f"Features Mean: {features.mean().item():.4f}")
+    print(f"Features Std: {features.std().item():.4f}")
+    
+    # Visualize feature distribution for the first frame
+    if features.shape[0] > 0:
+        plt.figure(figsize=(10, 6))
+        plt.hist(features[0].cpu().numpy(), bins=50)
+        plt.title("Distribution of CLIP Features (First Frame)")
+        plt.xlabel("Feature Value")
+        plt.ylabel("Frequency")
+        plt.savefig("feature_distribution.png")
+        print("\nFeature distribution saved to feature_distribution.png")
+        plt.close()
+        
+        # Visualize feature heatmap for the first few dimensions
+        plt.figure(figsize=(12, 8))
+        plt.imshow(features[:min(10, features.shape[0]), :50].cpu().numpy(), aspect='auto', cmap='viridis')
+        plt.colorbar(label='Feature Value')
+        plt.title("CLIP Features Heatmap (First 10 frames x 50 dimensions)")
+        plt.xlabel("Feature Dimension")
+        plt.ylabel("Frame Index")
+        plt.savefig("feature_heatmap.png")
+        print("\nFeature heatmap saved to feature_heatmap.png")
+        plt.close()
+    
+    print("="*50)
+
+
 def parse_args():
     parser = argparse.ArgumentParser(description="Video Keyframe Summarization Demo")
     parser.add_argument("--clip_path", type=str, default="/content/V2Xum-LLM-Models/clip/ViT-L-14.pt")
@@ -138,18 +288,18 @@ if __name__ == "__main__":
     model = model.cuda()
     model.to(torch.float16)
 
+    # 1) Display input video information
+    video_path = args.video_path
+    width, height, fps, num_frames, duration = display_video_info(video_path)
+    
+    # 2) Display random frames from the input video
+    random_frame_indices = display_random_frames(video_path, num_frames=3)
+
     clip_model, _ = clip.load(args.clip_path)
     clip_model.eval()
     clip_model = clip_model.cuda()
 
-    video_path = args.video_path
-    cap = cv2.VideoCapture(video_path)
-    fps = cap.get(cv2.CAP_PROP_FPS)  # Get FPS of video
-    num_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))  # Total frames
-    duration = int(num_frames / fps)  # Duration in seconds
-    cap.release()
-
-    video_loader = VideoExtractor(N=duration)
+    video_loader = VideoExtractor(N=int(duration))
     _, images = video_loader.extract({'id': None, 'video': args.video_path})
 
     transform = Compose([
@@ -158,6 +308,9 @@ if __name__ == "__main__":
         Normalize((0.48145466, 0.4578275, 0.40821073), (0.26862954, 0.26130258, 0.27577711)),
     ])
 
+    # 3) Show comparison of frames before and after transformation
+    display_transformation_comparison(video_path, random_frame_indices, transform)
+
     # Transform images
     images = transform(images / 255.0)
     images = images.to(torch.float16)
@@ -165,6 +318,9 @@ if __name__ == "__main__":
     # Extract features
     with torch.no_grad():
         features = clip_model.encode_image(images.to('cuda'))
+    
+    # 4) Display information about extracted features
+    display_features_info(features)
 
     prompts = {
         "V-sum": ["Please generate a VIDEO summarization for this video."],
