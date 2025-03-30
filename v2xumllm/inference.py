@@ -25,102 +25,6 @@ from torchvision.transforms import Compose, Resize, CenterCrop, Normalize
 import numpy as np
 import clip
 
-
-def clean_output(text):
-    # This regex removes anything between square brackets including the brackets
-    return re.sub(r'\s*\[[^\]]*\]', '', text)
-
-
-def extract_keyframes(text):
-    # Extract content within square brackets
-    keyframes = re.findall(r'\[([^\]]*)\]', text)
-    return keyframes
-
-
-def inference(model, image, query, tokenizer):
-    conv = conv_templates["v1"].copy()
-    conv.append_message(conv.roles[0], query)
-    conv.append_message(conv.roles[1], None)
-    prompt = conv.get_prompt()
-    input_ids = tokenizer_image_token(prompt, tokenizer, IMAGE_TOKEN_INDEX, return_tensors='pt').unsqueeze(0).cuda()
-
-    stop_str = conv.sep if conv.sep_style != SeparatorStyle.TWO else conv.sep2
-    keywords = [stop_str]
-    stopping_criteria = KeywordsStoppingCriteria(keywords, tokenizer, input_ids)
-
-    with torch.inference_mode():
-        outputs = model.generate(
-            input_ids,
-            images=image[None,].cuda(),
-            do_sample=True,
-            temperature=0.05,
-            num_beams=1,
-            max_new_tokens=1024,
-            use_cache=True,
-            output_scores=True,
-            return_dict_in_generate=True
-        )
-
-        logits = outputs.scores
-
-    input_token_len = input_ids.shape[1]
-    n_diff_input_output = (input_ids != outputs.sequences[:, :input_token_len]).sum().item()
-    if n_diff_input_output > 0:
-        print(f'[Warning] {n_diff_input_output} output_ids are not the same as the input_ids')
-    decoded_outputs = tokenizer.batch_decode(outputs.sequences[:, input_token_len:], skip_special_tokens=True)[0]
-    
-    # Get the original output with brackets
-    original_output = decoded_outputs.strip()
-    if original_output.endswith(stop_str):
-        original_output = original_output[:-len(stop_str)]
-    original_output = original_output.strip()
-    
-    # Extract keyframes before cleaning
-    keyframes = extract_keyframes(original_output)
-    
-    # Clean the output to remove content between square brackets
-    cleaned_output = clean_output(original_output)
-    
-    return cleaned_output, keyframes, logits
-
-
-def create_keyframe_video(video_path, keyframe_segments, output_path, duration_per_frame):
-    # Open the original video
-    cap = cv2.VideoCapture(video_path)
-    
-    # Get video properties
-    fps = cap.get(cv2.CAP_PROP_FPS)
-    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-    
-    # Prepare video writer
-    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-    out = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
-    
-    # Flatten and unique the keyframe segments
-    all_keyframes = sorted(set([frame for segment in keyframe_segments for frame in segment]))
-    
-    # Write keyframes to the output video
-    for frame_idx in all_keyframes:
-        # Set the frame position
-        cap.set(cv2.CAP_PROP_POS_FRAMES, frame_idx)
-        
-        # Read the frame
-        ret, frame = cap.read()
-        
-        if ret:
-            # Write the frame multiple times to create a longer duration
-            for _ in range(int(fps * duration_per_frame)):
-                out.write(frame)
-    
-    # Release resources
-    cap.release()
-    out.release()
-    
-    print(f"Summarized video saved to {output_path}")
-    return output_path
-
-
 def parse_args():
     parser = argparse.ArgumentParser(description="Video Keyframe Summarization Demo")
     parser.add_argument("--clip_path", type=str, default="/content/V2Xum-LLM-Models/clip/ViT-L-14.pt")
@@ -134,68 +38,43 @@ def parse_args():
 if __name__ == "__main__":
     args = parse_args()
     disable_torch_init()
-    tokenizer, model, context_len = load_pretrained_model(args, args.stage2)
-    model = model.cuda()
-    model.to(torch.float16)
 
-    clip_model, _ = clip.load(args.clip_path)
-    clip_model.eval()
-    clip_model = clip_model.cuda()
-
-    video_path = args.video_path
-    cap = cv2.VideoCapture(video_path)
-    fps = cap.get(cv2.CAP_PROP_FPS)  # Get FPS of video
-    num_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))  # Total frames
-    duration = int(num_frames / fps)  # Duration in seconds
-    cap.release()
-
-    video_loader = VideoExtractor(N=duration)
+    video_loader = VideoExtractor(N=10)  # Adjust N as needed
     _, images = video_loader.extract({'id': None, 'video': args.video_path})
 
-    transform = Compose([
-        Resize(224, interpolation=BICUBIC),
-        CenterCrop(224),
-        Normalize((0.48145466, 0.4578275, 0.40821073), (0.26862954, 0.26130258, 0.27577711)),
-    ])
+    # Select 3 random frames
+    if len(images) >= 3:
+        random_indices = random.sample(range(len(images)), 3)
+        output_dir = "output"
+        transformed_dir = "transformed_frames"
+        os.makedirs(output_dir, exist_ok=True)
+        os.makedirs(transformed_dir, exist_ok=True)
 
-    # Transform images
-    images = transform(images / 255.0)
-    images = images.to(torch.float16)
-    
-    # Extract features
-    with torch.no_grad():
-        features = clip_model.encode_image(images.to('cuda'))
+        transform = Compose([
+            Resize(224, interpolation=Image.BICUBIC),
+            CenterCrop(224),
+            Normalize((0.48145466, 0.4578275, 0.40821073), (0.26862954, 0.26130258, 0.27577711)),
+        ])
 
-    prompts = {
-        "V-sum": ["Please generate a VIDEO summarization for this video."],
-        "T-sum": ["Please generate a TEXT summarization for this video."],
-        "VT-sum": ["Please generate BOTH video and text summarization for this video."]
-    }
+        for i, idx in enumerate(random_indices):
+            frame = images[idx]
+            output_path = os.path.join(output_dir, f"frame_{idx}.png")
+            transformed_path = os.path.join(transformed_dir, f"frame_{idx}.png")
 
-    query = random.choice(prompts["VT-sum"])
-    text_summary, keyframes, _ = inference(model, features, "<video>\n " + query, tokenizer)
+            try:
+                frame_np = frame.cpu().numpy()
+                if len(frame_np.shape) == 3 and frame_np.shape[0] == 3:
+                    frame_np = np.transpose(frame_np, (1, 2, 0))  # Convert CHW to HWC
+                cv2.imwrite(output_path, cv2.cvtColor(frame_np, cv2.COLOR_RGB2BGR))
 
-    print("\nText Summary:", text_summary)
-    
-    print("\nKeyframes Identified:")
-    keyframe_segments = []
-    if keyframes:
-        for i, keyframe_str in enumerate(keyframes):
-            keyframe_nums = [int(k) for k in keyframe_str.split(",")]
-            scaled_keyframes = [int((k / 100) * num_frames) for k in keyframe_nums]
-            unique_scaled_keyframes = sorted(list(set(scaled_keyframes)))
-            
-            print(f"Segment {i+1}: {', '.join(map(str, unique_scaled_keyframes))}")
-            keyframe_segments.append(unique_scaled_keyframes)
+                # Apply transformation
+                frame_tensor = torch.tensor(frame_np).permute(2, 0, 1) / 255.0  # Convert to tensor and normalize
+                transformed_frame = transform(frame_tensor).permute(1, 2, 0).numpy()  # Convert back to numpy
+                transformed_frame = (transformed_frame * 255).astype(np.uint8)  # Denormalize
+                cv2.imwrite(transformed_path, cv2.cvtColor(transformed_frame, cv2.COLOR_RGB2BGR))
+            except Exception as e:
+                print(f"Error processing frame {idx}: {e}")
     else:
-        print("No keyframes were identified in the output.")
-        
-    # Create summarized video
-    if keyframe_segments:
-        output_video_path = create_keyframe_video(
-            video_path, 
-            keyframe_segments, 
-            output_path="video_summary.mp4", 
-            duration_per_frame=1
-        )
-        print(f"\nSummarized video saved to: {output_video_path}")
+        print(f"Not enough frames extracted. Only got {len(images)} frames.")
+
+    print("Done!")
