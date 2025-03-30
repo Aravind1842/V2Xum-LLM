@@ -75,20 +75,7 @@ if __name__ == "__main__":
     # Print basic info
     print("Feature shape:", features.shape)  # Expected shape: (num_images, feature_dim)
     print("First 5 feature values of the first frame:", features[0, :5])  # Sample values
+
+    np.save("features.npy", features)
     
-    # Plot histogram of feature values
-    plt.figure(figsize=(10, 5))
-    plt.hist(features.flatten(), bins=50, color='blue', alpha=0.7)
-    plt.title("Histogram of Extracted Features")
-    plt.xlabel("Feature Value")
-    plt.ylabel("Frequency")
-    plt.show()
-    
-    # Plot heatmap (only for first few images)
-    num_images_to_show = min(5, features.shape[0])  # Limit to 5 images
-    plt.figure(figsize=(10, 4))
-    sns.heatmap(features[:num_images_to_show, :], cmap="viridis", annot=False)
-    plt.title("Feature Map of First Few Frames")
-    plt.xlabel("Feature Dimension")
-    plt.ylabel("Frame Index")
-    plt.show()
+    print("Features saved as 'features.npy'")
