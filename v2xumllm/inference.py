@@ -155,38 +155,7 @@ if __name__ == "__main__":
         "VT-sum": ["Please generate BOTH video and text summarization for this video."]
     }
 
-    # Get the total number of tokens in the vocabulary
-    vocab = tokenizer.get_vocab()
-    total_tokens = len(vocab)
-    print(f"Total Tokens in Vocabulary: {total_tokens}")
+    query = random.choice(prompts["VT-sum"])
+    text_summary, keyframes, _ = inference(model, features, "<video>\n " + query, tokenizer)
     
-    # Extract valid word tokens (filter out special tokens and non-printable ones)
-    valid_tokens = [(token, token_id) for token, token_id in vocab.items() if token.isalpha()]
-    
-    # Select some random word tokens to display
-    num_tokens_to_display = 20  # Adjust as needed
-    selected_tokens = random.sample(valid_tokens, num_tokens_to_display)
-    
-    # Create an image with text
-    img_height = 500
-    img_width = 800
-    img = np.ones((img_height, img_width, 3), dtype=np.uint8) * 255  # White background
-    font = cv2.FONT_HERSHEY_SIMPLEX
-    font_scale = 0.7
-    font_color = (0, 0, 0)
-    line_thickness = 2
-    y_offset = 30
-    
-    # Add text to the image
-    for i, (token, token_id) in enumerate(selected_tokens):
-        text = f"Token: '{token}' → ID: {token_id}"
-        cv2.putText(img, text, (30, y_offset + i * 25), font, font_scale, font_color, line_thickness)
-    
-    # Save the image
-    cv2.imwrite("token_vocabulary.png", img)
-    print("Token vocabulary image saved as 'token_vocabulary.png'")
-    
-        query = random.choice(prompts["VT-sum"])
-        text_summary, keyframes, _ = inference(model, features, "<video>\n " + query, tokenizer)
-    
-        print("\nText Summary:", text_summary)
+    print("\nText Summary:", text_summary)
