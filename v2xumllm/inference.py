@@ -1,8 +1,6 @@
 import os
 import sys
 import random
-import re
-import cv2
 import argparse
 import torch
 from v2xumllm.constants import IMAGE_TOKEN_INDEX
@@ -24,18 +22,6 @@ except ImportError:
 from torchvision.transforms import Compose, Resize, CenterCrop, Normalize
 import numpy as np
 import clip
-import torch.nn.functional as F
-
-
-def clean_output(text):
-    # This regex removes anything between square brackets including the brackets
-    return re.sub(r'\s*\[[^\]]*\]', '', text)
-
-
-def extract_keyframes(text):
-    # Extract content within square brackets
-    keyframes = re.findall(r'\[([^\]]*)\]', text)
-    return keyframes
 
 
 def inference(model, image, query, tokenizer):
@@ -58,81 +44,48 @@ def inference(model, image, query, tokenizer):
             num_beams=1,
             max_new_tokens=1024,
             use_cache=True,
-            output_scores=True,
-            return_dict_in_generate=True
+            output_scores=True,  # Request output scores (logits)
+            return_dict_in_generate=True  # Return a dictionary containing logits
         )
 
-        logits = outputs.scores  # List of logit tensors (one per generated step)
+        logits = outputs.scores  # Extract logits
 
     input_token_len = input_ids.shape[1]
+    n_diff_input_output = (input_ids != outputs.sequences[:, :input_token_len]).sum().item()
+    if n_diff_input_output > 0:
+        print(f'[Warning] {n_diff_input_output} output_ids are not the same as the input_ids')
     decoded_outputs = tokenizer.batch_decode(outputs.sequences[:, input_token_len:], skip_special_tokens=True)[0]
+    decoded_outputs = decoded_outputs.strip()
+    if decoded_outputs.endswith(stop_str):
+        decoded_outputs = decoded_outputs[:-len(stop_str)]
+    decoded_outputs = decoded_outputs.strip()
+    return decoded_outputs, logits
 
-    # Extract original output before cleaning
-    original_output = decoded_outputs.strip()
-    if original_output.endswith(stop_str):
-        original_output = original_output[:-len(stop_str)]
-    original_output = original_output.strip()
-
-    # Extract keyframes before cleaning
-    keyframes = extract_keyframes(original_output)
-    
-    # Clean the output to remove content between square brackets
-    cleaned_output = clean_output(original_output)
-
-    # Pick a random step in generation
-    num_generated_tokens = len(logits)
-    random_step = random.randint(0, num_generated_tokens - 1)
-
-    # Get logits at this step and convert to probabilities
-    probs = F.softmax(logits[random_step], dim=-1)
-    top_k = 5  # Show top 5 tokens
-    top_probs, top_indices = torch.topk(probs, top_k)
-
-    # Decode output so far
-    output_so_far = tokenizer.batch_decode(outputs.sequences[:, input_token_len:input_token_len + random_step], skip_special_tokens=True)[0]
-
-    # Display results
-    print("\nGenerated Output So Far (Before Logits at Step {}):".format(random_step))
-    print(output_so_far[:50] + "..." if len(output_so_far) > 50 else output_so_far)  # Show first few words
-
-    print("\nTop 5 Token Probabilities at Step {}:".format(random_step))
-    for i in range(top_k):
-        token_id = top_indices[0, i].item()
-        token_prob = top_probs[0, i].item()
-        token_str = tokenizer.decode([token_id])
-        print(f"Token: '{token_str}' (ID: {token_id}) → Probability: {token_prob:.4f}")
-
-    return cleaned_output, keyframes, logits
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="Video Keyframe Summarization Demo")
-    parser.add_argument("--clip_path", type=str, default="/content/V2Xum-LLM-Models/clip/ViT-L-14.pt")
+    parser = argparse.ArgumentParser(description="Demo")
+    parser.add_argument("--clip_path", type=str, default="checkpoints/clip/ViT-L-14.pt")
     parser.add_argument("--model_base", type=str, default="lmsys/vicuna-7b-v1.5")
-    parser.add_argument("--pretrain_mm_mlp_adapter", type=str, default="/content/V2Xum-LLM-Models/llava-vicuna-v1-5-7b-stage1/mm_projector.bin")
-    parser.add_argument("--stage2", type=str, default="/content/V2Xum-LLM-Models/v2xumllm-vicuna-v1-5-7b-stage2-e2")
-    parser.add_argument("--video_path", type=str, default="demo/Ex1.mp4")
-    return parser.parse_args()
+    parser.add_argument("--pretrain_mm_mlp_adapter", type=str, default="checkpoints/llava-vicuna-v1-5-7b-stage1/mm_projector.bin")
+    parser.add_argument("--stage2", type=str, default="checkpoints/v2xumllm-vicuna-v1-5-7b-stage2-e2")
+    parser.add_argument("--video_path", type=str, default="demo/jump.mp4")
+    args = parser.parse_args()
 
+    return args
 
 if __name__ == "__main__":
     args = parse_args()
     disable_torch_init()
     tokenizer, model, context_len = load_pretrained_model(args, args.stage2)
     model = model.cuda()
+    # model.get_model().mm_projector.to(torch.float16)
     model.to(torch.float16)
 
     clip_model, _ = clip.load(args.clip_path)
     clip_model.eval()
     clip_model = clip_model.cuda()
 
-    video_path = args.video_path
-    cap = cv2.VideoCapture(video_path)
-    fps = cap.get(cv2.CAP_PROP_FPS)  # Get FPS of video
-    num_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))  # Total frames
-    duration = int(num_frames / fps)  # Duration in seconds
-    cap.release()
-
-    video_loader = VideoExtractor(N=duration)
+    video_loader = VideoExtractor(N=100)
     _, images = video_loader.extract({'id': None, 'video': args.video_path})
 
     transform = Compose([
@@ -141,21 +94,18 @@ if __name__ == "__main__":
         Normalize((0.48145466, 0.4578275, 0.40821073), (0.26862954, 0.26130258, 0.27577711)),
     ])
 
-    # Transform images
+    # print(images.shape) # <N, 3, H, W>
     images = transform(images / 255.0)
     images = images.to(torch.float16)
-    
-    # Extract features
     with torch.no_grad():
         features = clip_model.encode_image(images.to('cuda'))
 
-    prompts = {
-        "V-sum": ["Please generate a VIDEO summarization for this video."],
-        "T-sum": ["Please generate a TEXT summarization for this video."],
-        "VT-sum": ["Please generate BOTH video and text summarization for this video."]
+    prompts =  {
+        "V-sum":["Please generate a VIDEO summarization for this video."],
+        "T-sum":["Please generate a TEXT summarization for this video."],
+        "VT-sum":["Please generate BOTH video and text summarization for this video."]
     }
 
     query = random.choice(prompts["VT-sum"])
-    text_summary, keyframes, _ = inference(model, features, "<video>\n " + query, tokenizer)
-    
-    print("\nText Summary:", text_summary)
+    print("query: ", query)
+    print("answer: ", inference(model, features, "<video>\n " + query, tokenizer)[0])
