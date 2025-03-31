@@ -78,6 +78,30 @@ def inference(model, image, query, tokenizer):
     
     # Clean the output to remove content between square brackets
     cleaned_output = clean_output(original_output)
+
+    # Pick a random step in generation
+    num_generated_tokens = len(logits)
+    random_step = random.randint(0, num_generated_tokens - 1)
+
+    # Get logits at this step and convert to probabilities
+    probs = F.softmax(logits[random_step], dim=-1)
+    top_k = 5  # Show top 5 tokens
+    top_probs, top_indices = torch.topk(probs, top_k)
+
+    # Decode output so far
+    output_so_far = tokenizer.batch_decode(outputs.sequences[:, input_token_len:input_token_len + random_step], skip_special_tokens=True)[0]
+
+    # Display results
+    print("\nGenerated Output So Far (Before Logits at Step {}):".format(random_step))
+    print(output_so_far[:50] + "..." if len(output_so_far) > 50 else output_so_far)  # Show first few words
+
+    print("\nTop 5 Token Probabilities at Step {}:".format(random_step))
+    for i in range(top_k):
+        token_id = top_indices[0, i].item()
+        token_prob = top_probs[0, i].item()
+        token_str = tokenizer.decode([token_id])
+        print(f"Token: '{token_str}' (ID: {token_id}) → Probability: {token_prob:.4f}")
+
     return cleaned_output, keyframes, logits
 
 def parse_args():
@@ -97,17 +121,72 @@ if __name__ == "__main__":
     model = model.cuda()
     model.to(torch.float16)
 
+    clip_model, _ = clip.load(args.clip_path)
+    clip_model.eval()
+    clip_model = clip_model.cuda()
+
+    video_path = args.video_path
+    cap = cv2.VideoCapture(video_path)
+    fps = cap.get(cv2.CAP_PROP_FPS)  # Get FPS of video
+    num_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))  # Total frames
+    duration = int(num_frames / fps)  # Duration in seconds
+    cap.release()
+
+    video_loader = VideoExtractor(N=duration)
+    _, images = video_loader.extract({'id': None, 'video': args.video_path})
+
+    transform = Compose([
+        Resize(224, interpolation=BICUBIC),
+        CenterCrop(224),
+        Normalize((0.48145466, 0.4578275, 0.40821073), (0.26862954, 0.26130258, 0.27577711)),
+    ])
+
+    # Transform images
+    images = transform(images / 255.0)
+    images = images.to(torch.float16)
+    
+    # Extract features
+    with torch.no_grad():
+        features = clip_model.encode_image(images.to('cuda'))
+
+    prompts = {
+        "V-sum": ["Please generate a VIDEO summarization for this video."],
+        "T-sum": ["Please generate a TEXT summarization for this video."],
+        "VT-sum": ["Please generate BOTH video and text summarization for this video."]
+    }
+
     # Get the total number of tokens in the vocabulary
     vocab = tokenizer.get_vocab()
     total_tokens = len(vocab)
     print(f"Total Tokens in Vocabulary: {total_tokens}")
     
-    # Save vocabulary to a file
-    vocab_items = sorted(vocab.items(), key=lambda x: x[1])  # Sort by token ID
-    vocab_file = "vocabulary_tokens.txt"
+    # Extract valid word tokens (filter out special tokens and non-printable ones)
+    valid_tokens = [(token, token_id) for token, token_id in vocab.items() if token.isalpha()]
     
-    with open(vocab_file, "w", encoding="utf-8") as f:
-        for token, token_id in vocab_items:
-            f.write(f"{token}\t{token_id}\n")
+    # Select some random word tokens to display
+    num_tokens_to_display = 20  # Adjust as needed
+    selected_tokens = random.sample(valid_tokens, num_tokens_to_display)
     
-    print(f"Vocabulary saved to {vocab_file}")
+    # Create an image with text
+    img_height = 500
+    img_width = 800
+    img = np.ones((img_height, img_width, 3), dtype=np.uint8) * 255  # White background
+    font = cv2.FONT_HERSHEY_SIMPLEX
+    font_scale = 0.7
+    font_color = (0, 0, 0)
+    line_thickness = 2
+    y_offset = 30
+    
+    # Add text to the image
+    for i, (token, token_id) in enumerate(selected_tokens):
+        text = f"Token: '{token}' → ID: {token_id}"
+        cv2.putText(img, text, (30, y_offset + i * 25), font, font_scale, font_color, line_thickness)
+    
+    # Save the image
+    cv2.imwrite("token_vocabulary.png", img)
+    print("Token vocabulary image saved as 'token_vocabulary.png'")
+    
+        query = random.choice(prompts["VT-sum"])
+        text_summary, keyframes, _ = inference(model, features, "<video>\n " + query, tokenizer)
+    
+        print("\nText Summary:", text_summary)
