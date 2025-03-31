@@ -104,44 +104,6 @@ def inference(model, image, query, tokenizer):
 
     return cleaned_output, keyframes, logits
 
-
-def create_keyframe_video(video_path, keyframe_segments, output_path, duration_per_frame):
-    # Open the original video
-    cap = cv2.VideoCapture(video_path)
-    
-    # Get video properties
-    fps = cap.get(cv2.CAP_PROP_FPS)
-    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-    
-    # Prepare video writer
-    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-    out = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
-    
-    # Flatten and unique the keyframe segments
-    all_keyframes = sorted(set([frame for segment in keyframe_segments for frame in segment]))
-    
-    # Write keyframes to the output video
-    for frame_idx in all_keyframes:
-        # Set the frame position
-        cap.set(cv2.CAP_PROP_POS_FRAMES, frame_idx)
-        
-        # Read the frame
-        ret, frame = cap.read()
-        
-        if ret:
-            # Write the frame multiple times to create a longer duration
-            for _ in range(int(fps * duration_per_frame)):
-                out.write(frame)
-    
-    # Release resources
-    cap.release()
-    out.release()
-    
-    print(f"Summarized video saved to {output_path}")
-    return output_path
-
-
 def parse_args():
     parser = argparse.ArgumentParser(description="Video Keyframe Summarization Demo")
     parser.add_argument("--clip_path", type=str, default="/content/V2Xum-LLM-Models/clip/ViT-L-14.pt")
@@ -193,7 +155,38 @@ if __name__ == "__main__":
         "VT-sum": ["Please generate BOTH video and text summarization for this video."]
     }
 
-    query = random.choice(prompts["VT-sum"])
-    text_summary, keyframes, _ = inference(model, features, "<video>\n " + query, tokenizer)
-
-    print("\nText Summary:", text_summary)
+    # Get the total number of tokens in the vocabulary
+    vocab = tokenizer.get_vocab()
+    total_tokens = len(vocab)
+    print(f"Total Tokens in Vocabulary: {total_tokens}")
+    
+    # Extract valid word tokens (filter out special tokens and non-printable ones)
+    valid_tokens = [(token, token_id) for token, token_id in vocab.items() if token.isalpha()]
+    
+    # Select some random word tokens to display
+    num_tokens_to_display = 20  # Adjust as needed
+    selected_tokens = random.sample(valid_tokens, num_tokens_to_display)
+    
+    # Create an image with text
+    img_height = 500
+    img_width = 800
+    img = np.ones((img_height, img_width, 3), dtype=np.uint8) * 255  # White background
+    font = cv2.FONT_HERSHEY_SIMPLEX
+    font_scale = 0.7
+    font_color = (0, 0, 0)
+    line_thickness = 2
+    y_offset = 30
+    
+    # Add text to the image
+    for i, (token, token_id) in enumerate(selected_tokens):
+        text = f"Token: '{token}' → ID: {token_id}"
+        cv2.putText(img, text, (30, y_offset + i * 25), font, font_scale, font_color, line_thickness)
+    
+    # Save the image
+    cv2.imwrite("token_vocabulary.png", img)
+    print("Token vocabulary image saved as 'token_vocabulary.png'")
+    
+        query = random.choice(prompts["VT-sum"])
+        text_summary, keyframes, _ = inference(model, features, "<video>\n " + query, tokenizer)
+    
+        print("\nText Summary:", text_summary)
