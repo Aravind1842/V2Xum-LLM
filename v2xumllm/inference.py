@@ -178,7 +178,7 @@ if __name__ == "__main__":
     if keyframes:
         for i, keyframe_str in enumerate(keyframes):
             keyframe_nums = [int(k) for k in keyframe_str.split(",")]
-            scaled_keyframes = [int((k / 100) * num_frames) for k in keyframe_nums]
+            scaled_keyframes = [int((k / 100) * duration) for k in keyframe_nums]
             unique_scaled_keyframes = sorted(list(set(scaled_keyframes)))
             keyframe_segments.append(unique_scaled_keyframes)
     else:
