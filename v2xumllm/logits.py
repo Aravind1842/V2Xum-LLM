@@ -377,7 +377,7 @@ def inference(model, image, query, tokenizer):
             token_prob = modified_probs[0, token_id].item()
             token_str = tokenizer.decode([token_id])
             file.write(f"'{token_str}' → Probability: {token_prob:.4f}\n")
-            print(f"Token: '{token_str}' (ID: {token_id}) → Probability: {token_prob:.4f}")
+            print(f"Token: '{token_str}' (ID: {token_id})- Probability: {token_prob:.4f}")
     return cleaned_output, keyframes, logits
 
 def parse_args():
