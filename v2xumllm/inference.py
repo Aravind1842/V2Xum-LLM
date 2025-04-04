@@ -117,7 +117,6 @@ def create_keyframe_video(video_path, keyframe_segments, output_path, duration_p
     cap.release()
     out.release()
     
-    print(f"Summarized video saved to {output_path}")
     return output_path
 
 
