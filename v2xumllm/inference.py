@@ -83,6 +83,44 @@ def inference(model, image, query, tokenizer):
     
     return cleaned_output, keyframes, logits
 
+
+def create_keyframe_video(video_path, keyframe_segments, output_path, duration_per_frame):
+    # Open the original video
+    cap = cv2.VideoCapture(video_path)
+    
+    # Get video properties
+    fps = cap.get(cv2.CAP_PROP_FPS)
+    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    
+    # Prepare video writer
+    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+    out = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
+    
+    # Flatten and unique the keyframe segments
+    all_keyframes = sorted(set([frame for segment in keyframe_segments for frame in segment]))
+    
+    # Write keyframes to the output video
+    for frame_idx in all_keyframes:
+        # Set the frame position
+        cap.set(cv2.CAP_PROP_POS_FRAMES, frame_idx)
+        
+        # Read the frame
+        ret, frame = cap.read()
+        
+        if ret:
+            # Write the frame multiple times to create a longer duration
+            for _ in range(int(fps * duration_per_frame)):
+                out.write(frame)
+    
+    # Release resources
+    cap.release()
+    out.release()
+    
+    print(f"Summarized video saved to {output_path}")
+    return output_path
+
+
 def parse_args():
     parser = argparse.ArgumentParser(description="Video Keyframe Summarization Demo")
     parser.add_argument("--clip_path", type=str, default="/content/V2Xum-LLM-Models/clip/ViT-L-14.pt")
@@ -136,20 +174,22 @@ if __name__ == "__main__":
 
     query = random.choice(prompts["VT-sum"])
     text_summary, keyframes, _ = inference(model, features, "<video>\n " + query, tokenizer)
-    
-    print("\nKeyframes Identified:")
     keyframe_segments = []
-    output_path = "output_keyframes.txt"
-    with open(output_path, "w") as f:
-        f.write(f"Total frames : {duration}\n")
-        if keyframes:
-            for i, keyframe_str in enumerate(keyframes):
-                keyframe_nums = [int(k) for k in keyframe_str.split(",")]
-                scaled_keyframes = [int((k / 100) * num_frames) for k in keyframe_nums]
-                unique_scaled_keyframes = sorted(list(set(scaled_keyframes)))
-                
-                print(f"Segment {i+1}: {', '.join(map(str, unique_scaled_keyframes))}")
-                f.write(f"Segment {i+1}: {', '.join(map(str, unique_scaled_keyframes))}\n")
-                keyframe_segments.append(unique_scaled_keyframes)
-        else:
-            print("No keyframes were identified in the output.")
+    if keyframes:
+        for i, keyframe_str in enumerate(keyframes):
+            keyframe_nums = [int(k) for k in keyframe_str.split(",")]
+            scaled_keyframes = [int((k / 100) * num_frames) for k in keyframe_nums]
+            unique_scaled_keyframes = sorted(list(set(scaled_keyframes)))
+            keyframe_segments.append(unique_scaled_keyframes)
+    else:
+        print("No keyframes were identified in the output.")
+        
+    # Create summarized video
+    if keyframe_segments:
+        output_video_path = create_keyframe_video(
+            video_path, 
+            keyframe_segments, 
+            output_path="video_summary.mp4", 
+            duration_per_frame=1
+        )
+        print(f"\nSummarized video saved to: {output_video_path}")
