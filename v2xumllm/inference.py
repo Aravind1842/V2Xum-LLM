@@ -117,6 +117,7 @@ def create_keyframe_video(video_path, keyframe_segments, output_path, duration_p
     cap.release()
     out.release()
     
+    print(f"Summarized video saved to {output_path}")
     return output_path
 
 
@@ -173,12 +174,18 @@ if __name__ == "__main__":
 
     query = random.choice(prompts["VT-sum"])
     text_summary, keyframes, _ = inference(model, features, "<video>\n " + query, tokenizer)
+
+    print("\nText Summary:", text_summary)
+    
+    print("\nKeyframes Identified:")
     keyframe_segments = []
     if keyframes:
         for i, keyframe_str in enumerate(keyframes):
             keyframe_nums = [int(k) for k in keyframe_str.split(",")]
-            scaled_keyframes = [int((k / 100) * duration) for k in keyframe_nums]
+            scaled_keyframes = [int((k / 100) * num_frames) for k in keyframe_nums]
             unique_scaled_keyframes = sorted(list(set(scaled_keyframes)))
+            
+            print(f"Segment {i+1}: {', '.join(map(str, unique_scaled_keyframes))}")
             keyframe_segments.append(unique_scaled_keyframes)
     else:
         print("No keyframes were identified in the output.")
