@@ -15,6 +15,8 @@ import requests
 from io import BytesIO
 from transformers import TextStreamer
 from easydict import EasyDict as edict
+import faiss
+from sentence_transformers import SentenceTransformer
 try:
     from torchvision.transforms import InterpolationMode
     BICUBIC = InterpolationMode.BICUBIC
@@ -25,6 +27,38 @@ from torchvision.transforms import Compose, Resize, CenterCrop, Normalize
 import numpy as np
 import clip
 
+
+def index_and_search_with_sbert(text_summary, video_path, query_text, top_k=1):
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    
+    # Step 1: Load SBERT on GPU
+    sbert_model = SentenceTransformer("all-MiniLM-L6-v2", device=device)
+    
+    # Step 2: Embed the summary
+    text_embedding = sbert_model.encode(text_summary, convert_to_numpy=True, normalize_embeddings=True)
+    
+    # Step 3: Initialize FAISS
+    dim = text_embedding.shape[0]
+    index = faiss.IndexFlatL2(dim)
+    metadata_store = []
+
+    # Step 4: Add embedding and metadata
+    index.add(np.array([text_embedding]))
+    metadata_store.append({
+        "text_summary": text_summary,
+        "video_path": video_path
+    })
+
+    # Step 5: Query embedding and search
+    query_embedding = sbert_model.encode(query_text, convert_to_numpy=True, normalize_embeddings=True)
+    D, I = index.search(np.array([query_embedding]), k=top_k)
+
+    # Collect results
+    results = []
+    for idx in I[0]:
+        results.append(metadata_store[idx])
+    
+    return results
 
 def clean_output(text):
     # This regex removes anything between square brackets including the brackets
@@ -174,28 +208,13 @@ if __name__ == "__main__":
 
     query = random.choice(prompts["VT-sum"])
     text_summary, keyframes, _ = inference(model, features, "<video>\n " + query, tokenizer)
-
-    print("\nText Summary:", text_summary)
     
-    print("\nKeyframes Identified:")
-    keyframe_segments = []
-    if keyframes:
-        for i, keyframe_str in enumerate(keyframes):
-            keyframe_nums = [int(k) for k in keyframe_str.split(",")]
-            scaled_keyframes = [int((k / 100) * num_frames) for k in keyframe_nums]
-            unique_scaled_keyframes = sorted(list(set(scaled_keyframes)))
-            
-            print(f"Segment {i+1}: {', '.join(map(str, unique_scaled_keyframes))}")
-            keyframe_segments.append(unique_scaled_keyframes)
-    else:
-        print("No keyframes were identified in the output.")
-        
-    # Create summarized video
-    if keyframe_segments:
-        output_video_path = create_keyframe_video(
-            video_path, 
-            keyframe_segments, 
-            output_path="video_summary.mp4", 
-            duration_per_frame=1
-        )
-        print(f"\nSummarized video saved to: {output_video_path}")
+    query_text = "Someone walking in nature with music"
+    video_path = "/content/V2Xum-LLM/video_summary.mp4"
+    results = index_and_search_with_sbert(text_summary, video_path, query_text)
+
+    for i, match in enumerate(results):
+        print(f"Result {i+1}:")
+        print("Text Summary:", match["text_summary"])
+        print("Video Path:", match["video_path"])
+        print()
