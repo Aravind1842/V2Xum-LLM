@@ -18,3 +18,5 @@ opencv-python
 matplotlib
 seaborn 
 scikit-learn
+faiss-gpu
+sentence-transformers
