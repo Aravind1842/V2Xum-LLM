@@ -192,3 +192,10 @@ if __name__ == "__main__":
             duration_per_frame=1
         )
         print(f"\nSummarized video saved to: {output_video_path}")
+        
+    vocab_file = "text_sum.txt"
+    
+    with open(vocab_file, "w", encoding="utf-8") as f:
+        f.write(text_summary)
+    
+    print(f"Text Summary saved to {vocab_file}")
