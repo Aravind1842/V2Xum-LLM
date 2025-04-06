@@ -3,7 +3,7 @@ decord
 easydict
 einops
 gradio
-numpy
+numpy==1.24.4
 pandas>=2.0.3
 peft==0.13.2
 Pillow
