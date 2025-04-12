@@ -187,8 +187,8 @@ if __name__ == "__main__":
 
     # Load previous FAISS index and metadata
     load_faiss_and_metadata()
-    with open("ground_truth.json", "r") as f:
+    with open("/content/V2Xum-LLM/v2xumllm/ground_truth.json", "r") as f:
       ground_truth = json.load(f)
-    evaluate_retrieval(ground_truth, top_k=5)
+    evaluate_retrieval(ground_truth, top_k=6)
 
     save_faiss_and_metadata()
