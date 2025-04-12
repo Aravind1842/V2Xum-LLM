@@ -1,4 +1,4 @@
-ground_truth = [
+[
     {
         "query": "baby crawling",
         "relevant_video_paths": [
