@@ -151,7 +151,7 @@ if __name__ == "__main__":
     clip_model.eval().cuda()
 
     # Root directory containing category folders
-    root_dir = "retrieval"
+    root_dir = "retreival"
     processed_videos = 0
     max_videos = 50
 
