@@ -2,101 +2,101 @@
     {
         "query": "baby crawling",
         "relevant_video_paths": [
-            "retrieval/babycrawl/babycrawl1.mp4",
-            "retrieval/babycrawl/babycrawl2.mp4",
-            "retrieval/babycrawl/babycrawl3.mp4",
-            "retrieval/babycrawl/babycrawl4.mp4",
-            "retrieval/babycrawl/babycrawl5.mp4"
+            "retreival/babycrawl/babycrawl1.avi",
+            "retreival/babycrawl/babycrawl2.avi",
+            "retreival/babycrawl/babycrawl3.avi",
+            "retreival/babycrawl/babycrawl4.avi",
+            "retreival/babycrawl/babycrawl5.avi"
         ]
     },
     {
         "query": "playing basketball",
         "relevant_video_paths": [
-            "retrieval/basketball/basketball1.mp4",
-            "retrieval/basketball/basketball2.mp4",
-            "retrieval/basketball/basketball3.mp4",
-            "retrieval/basketball/basketball4.mp4",
-            "retrieval/basketball/basketball5.mp4"
+            "retreival/basketball/basketball1.avi",
+            "retreival/basketball/basketball2.avi",
+            "retreival/basketball/basketball3.avi",
+            "retreival/basketball/basketball4.avi",
+            "retreival/basketball/basketball5.avi"
         ]
     },
     {
         "query": "riding a bicycle",
         "relevant_video_paths": [
-            "retrieval/biking/biking1.mp4",
-            "retrieval/biking/biking2.mp4",
-            "retrieval/biking/biking3.mp4",
-            "retrieval/biking/biking4.mp4",
-            "retrieval/biking/biking5.mp4"
+            "retreival/biking/biking1.avi",
+            "retreival/biking/biking2.avi",
+            "retreival/biking/biking3.avi",
+            "retreival/biking/biking4.avi",
+            "retreival/biking/biking5.avi"
         ]
     },
     {
         "query": "walking a dog",
         "relevant_video_paths": [
-            "retrieval/dog/dog1.mp4",
-            "retrieval/dog/dog2.mp4",
-            "retrieval/dog/dog3.mp4",
-            "retrieval/dog/dog4.mp4",
-            "retrieval/dog/dog5.mp4"
+            "retreival/dog/dog1.avi",
+            "retreival/dog/dog2.avi",
+            "retreival/dog/dog3.avi",
+            "retreival/dog/dog4.avi",
+            "retreival/dog/dog5.avi"
         ]
     },
     {
         "query": "playing a guitar",
         "relevant_video_paths": [
-            "retrieval/guitar/guitar1.mp4",
-            "retrieval/guitar/guitar2.mp4",
-            "retrieval/guitar/guitar3.mp4",
-            "retrieval/guitar/guitar4.mp4",
-            "retrieval/guitar/guitar5.mp4"
+            "retreival/guitar/guitar1.avi",
+            "retreival/guitar/guitar2.avi",
+            "retreival/guitar/guitar3.avi",
+            "retreival/guitar/guitar4.avi",
+            "retreival/guitar/guitar5.avi"
         ]
     },
     {
         "query": "using a jumprope",
         "relevant_video_paths": [
-            "retrieval/jumprope/jumprope1.mp4",
-            "retrieval/jumprope/jumprope2.mp4",
-            "retrieval/jumprope/jumprope3.mp4",
-            "retrieval/jumprope/jumprope4.mp4",
-            "retrieval/jumprope/jumprope5.mp4"
+            "retreival/jumprope/jumprope1.avi",
+            "retreival/jumprope/jumprope2.avi",
+            "retreival/jumprope/jumprope3.avi",
+            "retreival/jumprope/jumprope4.avi",
+            "retreival/jumprope/jumprope5.avi"
         ]
     },
     {
         "query": "kayak",
         "relevant_video_paths": [
-            "retrieval/kayak/kayak1.mp4",
-            "retrieval/kayak/kayak2.mp4",
-            "retrieval/kayak/kayak3.mp4",
-            "retrieval/kayak/kayak4.mp4",
-            "retrieval/kayak/kayak5.mp4"
+            "retreival/kayak/kayak1.avi",
+            "retreival/kayak/kayak2.avi",
+            "retreival/kayak/kayak3.avi",
+            "retreival/kayak/kayak4.avi",
+            "retreival/kayak/kayak5.avi"
         ]
     },
     {
         "query": "rope climbing",
         "relevant_video_paths": [
-            "retrieval/rope/rope1.mp4",
-            "retrieval/rope/rope2.mp4",
-            "retrieval/rope/rope3.mp4",
-            "retrieval/rope/rope4.mp4",
-            "retrieval/rope/rope5.mp4"
+            "retreival/rope/rope1.avi",
+            "retreival/rope/rope2.avi",
+            "retreival/rope/rope3.avi",
+            "retreival/rope/rope4.avi",
+            "retreival/rope/rope5.avi"
         ]
     },
     {
         "query": "sumo wrestling",
         "relevant_video_paths": [
-            "retrieval/sumo/sumo1.mp4",
-            "retrieval/sumo/sumo2.mp4",
-            "retrieval/sumo/sumo3.mp4",
-            "retrieval/sumo/sumo4.mp4",
-            "retrieval/sumo/sumo5.mp4"
+            "retreival/sumo/sumo1.avi",
+            "retreival/sumo/sumo2.avi",
+            "retreival/sumo/sumo3.avi",
+            "retreival/sumo/sumo4.avi",
+            "retreival/sumo/sumo5.avi"
         ]
     },
     {
         "query": "writing on a board",
         "relevant_video_paths": [
-            "retrieval/writing/writing1.mp4",
-            "retrieval/writing/writing2.mp4",
-            "retrieval/writing/writing3.mp4",
-            "retrieval/writing/writing4.mp4",
-            "retrieval/writing/writing5.mp4"
+            "retreival/writing/writing1.avi",
+            "retreival/writing/writing2.avi",
+            "retreival/writing/writing3.avi",
+            "retreival/writing/writing4.avi",
+            "retreival/writing/writing5.avi"
         ]
     }
 ]
