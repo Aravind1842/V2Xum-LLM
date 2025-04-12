@@ -54,12 +54,14 @@ def search_summaries(query_text, top_k=1):
     results = []
     for idx, distance in zip(I[0], D[0]):
         if idx < len(metadata_store):
-            similarity = (1 - distance) * 100  # Convert cosine distance to similarity %
+            similarity = 1 / (1 + distance)
+            similarity_percent = round(similarity * 100, 2)
             results.append({
                 **metadata_store[idx],
-                "similarity_score": round(similarity, 2)
+                "similarity_score": similarity_percent
             })
     return results
+
 
 def save_faiss_and_metadata(index_path="faiss_index.index", metadata_path="metadata.pkl"):
     faiss.write_index(faiss_index, index_path)
