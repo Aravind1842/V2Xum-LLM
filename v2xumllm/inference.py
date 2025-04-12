@@ -52,9 +52,13 @@ def search_summaries(query_text, top_k=1):
     D, I = faiss_index.search(np.array([query_embedding]), k=top_k)
 
     results = []
-    for idx in I[0]:
+    for idx, distance in zip(I[0], D[0]):
         if idx < len(metadata_store):
-            results.append(metadata_store[idx])
+            similarity = (1 - distance) * 100  # Convert cosine distance to similarity %
+            results.append({
+                **metadata_store[idx],
+                "similarity_score": round(similarity, 2)
+            })
     return results
 
 def save_faiss_and_metadata(index_path="faiss_index.index", metadata_path="metadata.pkl"):
@@ -182,8 +186,10 @@ if __name__ == "__main__":
         results = search_summaries(user_query, top_k=1)
 
         for i, result in enumerate(results):
-            print(f"\nResult {i+1}:")
-            print("Text Summary:", result["text_summary"])
-            print("Video Path:", result["video_path"])
+            print(f"\n🔍 Result:")
+            print(f"📄 Text Summary: {result['text_summary']}")
+            print(f"🎞️ Video Path: {result['video_path']}")
+            print(f"📊 Similarity Score: {result['similarity_score']}%")
+
     else:
         print("✅ Skipping search. Done.")
