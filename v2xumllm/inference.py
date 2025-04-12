@@ -179,7 +179,7 @@ if __name__ == "__main__":
     do_query = input("🔍 Do you want to query the summaries? (yes/no): ").strip().lower()
     if do_query == "yes":
         user_query = input("Enter your search query: ")
-        results = search_summaries(user_query, top_k=3)
+        results = search_summaries(user_query, top_k=1)
 
         for i, result in enumerate(results):
             print(f"\nResult {i+1}:")
