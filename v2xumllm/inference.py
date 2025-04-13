@@ -185,10 +185,10 @@ if __name__ == "__main__":
     do_query = input("🔍 Do you want to query the summaries? (yes/no): ").strip().lower()
     if do_query == "yes":
         user_query = input("Enter your search query: ")
-        results = search_summaries(user_query, top_k=1)
+        results = search_summaries(user_query, top_k=5)
 
         for i, result in enumerate(results):
-            print(f"\n🔍 Result:")
+            print(f"\n🔍 Result {i + 1}:")
             print(f"📄 Text Summary: {result['text_summary']}")
             print(f"🎞️ Video Path: {result['video_path']}")
             print(f"📊 Similarity Score: {result['similarity_score']}%")
