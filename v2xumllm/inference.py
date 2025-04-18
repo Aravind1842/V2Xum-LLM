@@ -36,6 +36,8 @@ def store_summary(text_summary, video_path):
         initialize_sbert()
 
     embedding = sbert_model.encode(text_summary, convert_to_numpy=True, normalize_embeddings=True)
+    print(f"🔍 Embedding for summary:\n{embedding}\n")
+    
     faiss_index.add(np.array([embedding]))
     metadata_store.append({
         "text_summary": text_summary,
@@ -185,7 +187,7 @@ if __name__ == "__main__":
     do_query = input("🔍 Do you want to query the summaries? (yes/no): ").strip().lower()
     if do_query == "yes":
         user_query = input("Enter your search query: ")
-        results = search_summaries(user_query, top_k=5)
+        results = search_summaries(user_query, top_k=3)
 
         for i, result in enumerate(results):
             print(f"\n🔍 Result {i + 1}:")
